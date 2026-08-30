@@ -1,0 +1,6 @@
+version: 1
+active_skill_name: preference_02
+core_skill_name: preference_02
+notes: 'Manual switch: set active_skill_name to preference_01, preference_02, etc.'
+created_at: '2026-07-22 12:54:39'
+updated_at: '2026-07-22 12:54:39'

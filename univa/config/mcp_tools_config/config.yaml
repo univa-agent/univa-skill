@@ -1,0 +1,198 @@
+# UniVA MCP tool configuration.
+#
+# Non-sensitive defaults live here. Real API keys and environment-specific
+# overrides live in the repository root .env file. .env.example is only a
+# reference template and is never loaded at runtime.
+
+image_gen:
+  provider: "volcengine_ark"   # "wavespeed" or "volcengine_ark"
+  text_to_image: "seedance"
+  image_to_image: "seedance"
+  base_output_path: "results/image"
+
+  # Legacy key kept for backward compatibility; prefer wavespeed.api_key via .env.
+  wavespeed_api: ""
+  wavespeed:
+    api_key: ""
+    base_url: "https://api.wavespeed.ai/api/v3"
+    text_to_image_provider: "wavespeed-ai"
+    text_to_image_model: "flux-kontext-pro"
+    image_to_image_provider: "bytedance"
+    image_to_image_model: "seedream-v4/edit"
+    sequential_image_provider: "bytedance"
+    sequential_image_model: "seedream-v4/edit-sequential"
+
+  volcengine_ark:
+    api_key: ""
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"
+    text_to_image_model: "doubao-seedance-2-0-260128"
+    image_to_image_model: "doubao-seedance-2-0-260128"
+
+video_gen:
+  provider: "volcengine_ark"   # "wavespeed" or "volcengine_ark"
+  text_to_video: "seedance"
+  image_to_video: "seedance"
+  frame_to_frame_video: "wan_api"
+  base_output_path: "results/video"
+  if_audio: true
+  auto_audio: true
+  auto_audio_include_bgm: true
+  auto_audio_include_sfx: true
+  auto_audio_include_voiceover: false
+  min_duration_seconds: 4
+  max_duration_seconds: 10
+  default_aspect_ratio: "16:9"
+  merge:
+    transition: "fade"        # "hard_cut" or an ffmpeg xfade transition name
+    transition_duration_seconds: 0.4
+    output_size: "1280x720"
+  remotion:
+    enabled: false             # Optional final packaging layer after approved merge/audio.
+    package_path: "packages/remotion-compose"
+    browser_executable_path: "" # Optional local Chrome/Chromium path for offline rendering.
+    binaries_directory: ""       # Optional Remotion compositor/ffmpeg directory for older Linux hosts.
+    fallback_to_ffmpeg_subtitles: true # Burn timed captions with FFmpeg ASS if Remotion cannot run.
+    default_fps: 30
+    theme:
+      backgroundColor: "#101820"
+      surfaceColor: "rgba(16, 24, 32, 0.78)"
+      textColor: "#F7FAFC"
+      mutedTextColor: "#D7DEE8"
+      accentColor: "#2EC4B6"
+      captionBackground: "rgba(7, 12, 18, 0.72)"
+
+  # Legacy key kept for backward compatibility; prefer wavespeed.api_key via .env.
+  wavespeed_api: ""
+  wavespeed:
+    api_key: ""
+    base_url: "https://api.wavespeed.ai/api/v3"
+    text_to_video_provider: "bytedance"
+    text_to_video_model: "seedance-v1-pro-t2v-480p"
+    image_to_video_provider: "bytedance"
+    image_to_video_model: "seedance-v1-pro-i2v-480p"
+    frame_to_frame_provider: "minimax"
+    frame_to_frame_model: "hailuo-02/i2v-standard"
+
+  volcengine_ark:
+    api_key: ""
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"
+    text_to_video_model: "doubao-seedance-2-0-260128"
+    image_to_video_model: "doubao-seedance-2-0-260128"
+
+video_editing:
+  provider: "volcengine_ark"   # "wavespeed" or "volcengine_ark"
+  style_transfer: "runway"     # "vace" for local VACE, otherwise configured cloud provider
+  pose_reference: "vace_api"
+  repainting: "runway"
+
+  model_path: ""
+  local_vace:
+    python: "python"
+    workdir: ""
+    temp_dir: "temp"
+    results_dir: "results"
+
+  # Legacy key kept for backward compatibility; prefer wavespeed.api_key via .env.
+  wavespeed_api: ""
+  wavespeed:
+    api_key: ""
+    base_url: "https://api.wavespeed.ai/api/v3"
+    style_transfer_provider: "runwayml"
+    style_transfer_model: "gen4-aleph"
+    repainting_provider: "runwayml"
+    repainting_model: "gen4-aleph"
+    pose_provider: "wavespeed-ai"
+    pose_model: "wan-2.1-14b-vace"
+
+  volcengine_ark:
+    api_key: ""
+    base_url: "https://ark.cn-beijing.volces.com/api/v3"
+    style_transfer_model: "doubao-seedance-2-0-260128"
+    repainting_model: "doubao-seedance-2-0-260128"
+
+audio_gen:
+  provider: "wavespeed"
+  base_output_path: "results/audio"
+  duration: 5
+  guidance_scale: 4.5
+  num_inference_steps: 25
+  default_voice: "Wise_Woman"
+  default_emotion: "neutral"
+  default_model: "mmaudio-v2"
+  speech_model: "speech-2.5-turbo-preview"
+  bgm_volume: 0.32
+  bgm_fade_in_seconds: 1.0
+  bgm_fade_out_seconds: 1.5
+  sfx_default_volume: 0.45
+  voiceover_volume: 0.9
+  original_audio_volume: 0.25
+  speech_speed: 1.0
+  speech_pitch: 0
+  speech_volume: 1.0
+
+  # Legacy key kept for backward compatibility; prefer wavespeed.api_key via .env.
+  wavespeed_api: ""
+  wavespeed:
+    api_key: ""
+    base_url: "https://api.wavespeed.ai/api/v3"
+    audio_provider: "wavespeed-ai"
+    audio_model: "mmaudio-v2"
+    speech_provider: "minimax"
+    speech_model: "speech-2.5-turbo-preview"
+
+video_understanding:
+  model_path: "/share/project/liangzy/liangzy2/models_cache/Qwen2.5-VL-32B-Instruct"
+  retriever_model_path: "/share/project/liangzy/liangzy2/models_cache/BGE-VL-large"
+
+video_tracking:
+  cuda_visible_devices: ""
+  sa2va_model_path: ""
+  sam_model_path: ""
+
+llm:
+  model: "qwen-vl-max"
+  openai_api_key: ""
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+image_upload:
+  # Generic local-asset upload service.  The section name is retained for
+  # backward compatibility with existing image callers; video editing also uses
+  # it to expose local reference videos as Ark-readable HTTP(S) URLs.
+  url: ""
+  api_key: ""
+  model: ""
+  file_type: "file"
+  filename: ""
+  mime_type: ""
+  origin: ""
+  referer: ""
+  user_agent: "UniVA/1.0"
+
+video_upload:
+  # Preferred upload service for local videos passed to Ark video editing.
+  # Set provider to "cloudflare_tunnel" to expose a local file through a
+  # temporary Cloudflare Quick Tunnel instead of using an upload endpoint.
+  # If provider is unset, upload_file(..., config_section="video_upload") falls
+  # back to image_upload for backward compatibility.
+  provider: ""
+  local_port: 8765
+  verify_url: true
+  ready_delay_seconds: 0
+  tunnel_start_attempts: 3
+  cloudflared_bin: ""
+  url: ""
+  api_key: ""
+  model: ""
+  file_type: "file"
+  filename: ""
+  mime_type: ""
+  origin: ""
+  referer: ""
+  user_agent: "UniVA/1.0"
+
+save_service:
+  base_output_path: "results/video"
+  naming_pattern: "{timestamp}_{file_type}_{description}_{index:03d}"
+  cleanup_policy:
+    max_age_days: 30
+    max_size_gb: 100

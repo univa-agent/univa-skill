@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/edit_decisions.schema.json",
+  "title": "Edit Decisions",
+  "description": "Timeline editing decisions produced by the edit stage. Defines shot ordering, transitions, and pacing.",
+  "type": "object",
+  "required": ["shots", "total_duration_seconds"],
+  "properties": {
+    "shots": {
+      "type": "array",
+      "description": "Ordered list of shots with edit decisions",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["shot_number", "clip_path", "duration_seconds"],
+        "properties": {
+          "shot_number": {"type": "integer", "minimum": 1},
+          "clip_path": {"type": "string", "description": "Absolute path to the video clip"},
+          "duration_seconds": {"type": "number", "minimum": 1.0},
+          "transition_from_previous": {
+            "type": "string",
+            "enum": ["cut", "dissolve", "fade_in", "fade_out", "wipe", "none"]
+          },
+          "transition_duration_seconds": {"type": "number", "minimum": 0.0, "maximum": 3.0},
+          "narrative_beat": {
+            "type": "string",
+            "enum": ["hook", "setup", "build", "climax", "landing"]
+          },
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "total_duration_seconds": {
+      "type": "number",
+      "description": "Total duration of the edited video in seconds",
+      "minimum": 1.0
+    },
+    "pacing": {
+      "type": "string",
+      "enum": ["slow", "medium", "fast", "variable"]
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Hook placement strategy",
+      "properties": {
+        "first_3_seconds": {"type": "string"},
+        "mid_video": {"type": "string"}
+      }
+    }
+  }
+}

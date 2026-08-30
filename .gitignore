@@ -1,0 +1,74 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+apps/web/node_modules
+
+# next.js
+apps/web/out/
+
+# debug
+apps/web/npm-debug.log*
+
+# env files (can opt-in for committing if needed)
+/apps/web/.env*
+!/apps/web/.env.example
+
+# typescript
+apps/web/next-env.d.ts
+
+# asdf version management
+.tool-versions
+
+node_modules
+.cursorignore
+.turbo
+.next
+.cursor
+.vscode
+.husky
+.spec-workflow
+.cursorignore
+
+postman/
+plans/
+
+ .env
+ 
+*.bak
+
+/home/u2023311g18/univa/video-shotcraft
+
+video-shotcraft
+
+# local runtime data and generated media
+/allmd/
+/paper_assets/
+/results/
+/univa/results/
+
+# keep empty data directory in git, but ignore its contents
+/data/*
+!/data/.gitkeep
+
+# keep empty logs/mcp_tools directory in git, but ignore log contents
+/logs/*
+!/logs/mcp_tools/
+/logs/mcp_tools/*
+!/logs/mcp_tools/.gitkeep
+
+# cursor
+bun.lockb
+
+/apps/web/.media-cache
+/univa/plans
+
+*.egg-info/
+__pycache__
+*.db
+docs/*
+!docs/assets/
+docs/assets/*
+!docs/assets/readme/
+!docs/assets/readme/*
+.github
+auth_config.json

@@ -1,0 +1,20 @@
+## Prompt for Generating New Videos Based on Reference Videos (Applicable to Qwen2-VL and Other Multimodal Models)
+
+**Task Description:**
+Please analyze the provided reference video segment and generate an analysis report based on it.
+
+**Generation Requirements:**
+1. **Visual Style:** Capture and reproduce the overall color tone, lighting, and visual texture of the reference video (e.g., cinematic, anime style, vlog style).
+2. **Camera Language:** Mimic the camera movements in the reference video, such as camera angles, movement trajectories (push, pull, dolly, truck, follow), shot sizes (long shot, full shot, medium shot, close-up, extreme close-up), and editing pace.
+3. **Plot (Optional):** If the reference video contains a clear storyline, generate a new story segment with similar plot developments, turning points, or themes.
+4. **Scenes:** Recreate the distinctive settings or overall atmosphere of the scenes in the reference video (e.g., serene natural scenery, bustling city night scenes, tense suspenseful atmosphere).
+
+**Output Requirements:**
+
+Output strictly in JSON format.
+{
+    "visual_style": ".......",
+    "camera_language": "......",
+    "plot": "......",
+    "scene": "......"
+}

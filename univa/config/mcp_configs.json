@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "video_editing": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.video_editing"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    },
+    "video_tracking": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.video_tracking"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    },
+    "video_understanding": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.video_understanding"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    },
+    "image_gen": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.image_gen"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    },
+    "video_gen": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.video_gen"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    },
+    "audio_gen": {
+      "command": "/home/u2023311g18/.conda/envs/univa/bin/python",
+      "args": ["-m", "univa.mcp_tools.audio_gen"],
+      "env": {
+        "PYTHONPATH": "/home/u2023311g18/univa",
+        "CWD": "/home/u2023311g18/univa"
+      },
+      "auto_confirm": []
+    }
+  }
+}

@@ -1,0 +1,39 @@
+## LLM Bounding Box Matching Task Prompt
+
+**Task Description:**  
+You are given a user input sentence and a list of bounding boxes detected by Ground DINO. Your task is to determine which bounding box corresponds to the description provided in the user’s input.
+
+**Steps to Follow:**
+
+1. **Understand the Input Sentence:**  
+   - Read and comprehend the user’s input sentence carefully.  
+   - Extract key contextual details from the sentence, such as the subject (e.g., "person"), any relevant attributes (e.g., "leaning against the pillar"), and other descriptive elements that help identify the specific object.
+
+2. **Analyze the Bounding Boxes:**  
+   - Ground DINO will provide a list of bounding boxes for various objects (e.g., people, vehicles, etc.).  
+   - Each bounding box includes information such as the object type (e.g., "person"), coordinates (e.g., location on the image), and potentially additional attributes.
+
+3. **Match the Bounding Box to the Input:**  
+   - Compare the bounding boxes with the description in the user input.  
+   - Determine which bounding box matches the description most accurately, based on both the object type and the contextual details provided in the input sentence.
+
+4. **Output Format:**  
+   - Return a JSON object that includes a key `"correct_bounding_box"`, which holds the index of the bounding box that best corresponds to the description. If no bounding box matches the description, return `null`.  
+   - The output should only contain the JSON object, with no additional explanations.
+
+**Example Outputs:**
+
+- **Example 1:**  
+  **Input Sentence:** "The person leaning against the pillar."  
+  **Bounding Boxes (from Ground DINO):**
+  ```json
+  [
+    {"object": "person", "coordinates": [100, 50, 200, 150]},
+    {"object": "person", "coordinates": [300, 100, 400, 200]},
+    {"object": "person", "coordinates": [500, 200, 600, 300]}
+  ]
+  **Output:**
+  {
+    "correct_bounding_box": 0
+  }
+

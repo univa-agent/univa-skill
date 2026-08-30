@@ -1,0 +1,23 @@
+{
+  "name": "@univa/remotion-compose",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional Remotion final-compose layer for UniVA approved videos",
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "render": "remotion render src/index.tsx UniVACompose out/univa-compose.mp4",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.484",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.484"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "5.8.3",
+    "@types/node": "^24.1.0"
+  }
+}

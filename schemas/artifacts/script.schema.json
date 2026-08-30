@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/script.schema.json",
+  "title": "Script / Storyboard",
+  "description": "The script/storyboard produced by the script stage. Contains the story's characters, shots, and style.",
+  "type": "object",
+  "required": ["storyboard"],
+  "properties": {
+    "storyboard": {
+      "type": "object",
+      "required": ["characters", "shots", "style"],
+      "properties": {
+        "style": {
+          "type": "string",
+          "description": "Overall visual style for the story"
+        },
+        "characters": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["id", "description"],
+            "properties": {
+              "id": { "type": "string" },
+              "description": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        },
+        "shots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": ["id", "setting_description", "shot_perspective_design"],
+            "properties": {
+              "id": { "type": "string" },
+              "setting_description": { "type": "string" },
+              "plot_correspondence": { "type": "string" },
+              "static_shot_description": { "type": "string" },
+              "onstage_characters": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "shot_perspective_design": {
+                "type": "object",
+                "required": ["distance", "angle", "lens"],
+                "properties": {
+                  "distance": { "type": "string" },
+                  "angle": { "type": "string" },
+                  "lens": { "type": "string" }
+                }
+              },
+              "duration_seconds": {
+                "type": "number",
+                "default": 5,
+                "description": "Estimated duration of this shot"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

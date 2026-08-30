@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/brief.schema.json",
+  "title": "Creative Brief",
+  "description": "The creative brief produced by the idea stage. Defines the video's concept, audience, and constraints.",
+  "type": "object",
+  "required": ["story_theme", "target_duration_seconds", "target_platform", "visual_style"],
+  "properties": {
+    "story_theme": {
+      "type": "string",
+      "description": "One-sentence summary of the story concept"
+    },
+    "target_duration_seconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 300,
+      "description": "Target video duration in seconds"
+    },
+    "target_platform": {
+      "type": "string",
+      "enum": ["youtube", "youtube_shorts", "tiktok", "instagram_reels", "other"],
+      "description": "Target platform for the video"
+    },
+    "visual_style": {
+      "type": "string",
+      "description": "Visual style direction (e.g., 'anime', 'cinematic', 'Ghibli-inspired')"
+    },
+    "genre": {
+      "type": "string",
+      "description": "Story genre (e.g., 'sci-fi', 'fantasy', 'slice-of-life')"
+    },
+    "tone": {
+      "type": "string",
+      "description": "Emotional tone (e.g., 'heartwarming', 'suspenseful', 'humorous')"
+    },
+    "character_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 2,
+      "description": "Number of main characters"
+    },
+    "reference_video": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "analysis": { "type": "object" }
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Any specific constraints (e.g., 'no dialogue', 'single location')"
+    }
+  }
+}

@@ -1,0 +1,191 @@
+name: story-video
+version: "1.0"
+description: >
+  Generate multi-shot story videos from text descriptions. Uses the storyvideo_gen workflow:
+  storyboard -> character images -> keyframes -> video clips -> merge.
+  Suitable for narrative-driven short video creation.
+category: generated
+stability: beta
+
+default_checkpoint_policy: guided
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/story-video/executive-producer
+  budget_default_usd: 1.00
+  max_revisions_per_stage: 3
+  max_send_backs: 3
+
+required_skills:
+  - pipelines/story-video/executive-producer
+  - pipelines/story-video/idea-director
+  - pipelines/story-video/script-director
+  - pipelines/story-video/scene-plan-director
+  - pipelines/story-video/asset-director
+  - pipelines/story-video/edit-director
+  - pipelines/story-video/compose-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - meta/pipeline-loader
+  - creative/creative-brief
+  - creative/copywriting
+  - creative/styleframe-direction
+  - creative/energy-arc
+  - creative/shot-recipe-library
+  - creative/duration-planning
+  - creative/transition-sound-caption
+  - creative/remotion-packaging
+  - creative/material-matching
+  - creative/creative-quality-gate
+
+stages:
+  # ── Pre-Production ──────────────────────────────────────────────
+
+  - name: idea
+    skill: pipelines/story-video/idea-director
+    produces:
+      - brief
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Story theme is clear and has a coherent narrative arc
+      - Target platform and duration are defined
+      - Visual style direction is decomposed into style_tokens (color, light, composition, texture, motion character)
+      - Character count and complexity are manageable (2-3 characters)
+      - User asset status, missing assets, and fallback strategy are recorded
+    success_criteria:
+      - brief contains story_theme, target_duration_seconds, target_platform, and visual_style
+      - brief records hard constraints, inferred defaults, and asset requirements
+
+  - name: script
+    skill: pipelines/story-video/script-director
+    required_artifacts_in:
+      - brief
+    produces:
+      - script
+    tools_available:
+      - vision2text_gen
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Storyboard structure is complete (characters + shots + style)
+      - Each shot has explicit shot_perspective_design
+      - Character descriptions are detailed enough for later generation
+      - Shot count, per-shot duration, and hold/read/rest time match target duration
+      - Shots have visual variety and map to the energy_arc
+      - Hook, voice/caption plan, and on-screen copy are planned
+    success_criteria:
+      - script contains storyboard (characters + shots + style)
+      - script contains copy_direction, energy_arc, and duration_plan
+      - total shot duration is approximately target_duration_seconds +/-10%
+
+  - name: scene_plan
+    skill: pipelines/story-video/scene-plan-director
+    required_artifacts_in:
+      - script
+    produces:
+      - scene_plan
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Each shot has a complete keyframe_prompt
+      - shot_perspective_design includes distance, angle, and lens
+      - onstage_characters correctly reference character IDs defined in script
+      - Visual variety: no 3+ consecutive shots of the same type
+      - All asset requirements are within current MCP tool capability
+      - Each shot has recipe, source_assets/generation_strategy, and fallback_strategy
+    success_criteria:
+      - scene_plan contains complete keyframe descriptions for all shots
+      - Each shot has an explicit asset requirement list
+      - scene_plan contains style_tokens, material_plan, and caption_plan/audio_plan placeholders
+
+  # ── Production ──────────────────────────────────────────────────
+
+  - name: assets
+    skill: pipelines/story-video/asset-director
+    required_artifacts_in:
+      - scene_plan
+      - script
+    produces:
+      - asset_manifest
+    required_tools:
+      - text2image_generate
+      - image2video_gen
+    optional_tools:
+      - image2image_generate
+      - sequential_image_gen
+      - audio_gen
+      - text2video_gen
+    tools_available:
+      - text2image_generate
+      - image2image_generate
+      - sequential_image_gen
+      - text2video_gen
+      - image2video_gen
+      - audio_gen
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - All character images have been generated and saved locally
+      - All keyframes have been generated and saved locally
+      - All video clips have been generated and saved locally
+      - Characters remain consistent across shots (using anchor images + I2I)
+      - All file paths are valid and files exist
+      - Cost remains within budget
+    success_criteria:
+      - asset_manifest lists all generated assets and paths
+      - All asset files exist and are readable
+
+  - name: edit
+    skill: pipelines/story-video/edit-director
+    required_artifacts_in:
+      - scene_plan
+      - asset_manifest
+    optional_artifacts_in:
+      - script
+    produces:
+      - edit_decisions
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Video clip order matches the script narrative structure
+      - Transition design is justified and serves the energy_arc rather than decoration
+      - No timeline gaps or overlaps
+      - Hook appears within the first 3 seconds
+      - Caption, voice, BGM/SFX plans are placed on the timeline; mark them as plan-only when they cannot be synthesized
+      - Remotion usage is recorded by remotion_handoff.enabled/reason
+    success_criteria:
+      - edit_decisions cover all video clips
+      - Total duration matches the target within +/-10%
+      - edit_decisions include transition_plan, caption_plan, and audio_plan
+      - edit_decisions include remotion_handoff; enabled=true when captions, branding, CTA, or info cards are needed
+
+  - name: compose
+    skill: pipelines/story-video/compose-director
+    required_artifacts_in:
+      - edit_decisions
+      - asset_manifest
+    produces:
+      - render_report
+    required_tools:
+      - merge2videos
+    optional_tools:
+      - remotion_compose_video
+    tools_available:
+      - merge2videos
+      - remotion_compose_video
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Output video exists and is playable
+      - Duration is within +/-10% of the target
+      - No black frames or broken frames
+      - Resolution is consistent
+      - If remotion_handoff.enabled=true, Remotion output or failure reason is written to render_report
+    success_criteria:
+      - render_report contains output paths
+      - Output file passes ffprobe validation
+      - render_report distinguishes ffmpeg_output_path, remotion_output_path, and final_output_path

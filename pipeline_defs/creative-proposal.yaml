@@ -1,0 +1,200 @@
+name: creative-proposal
+version: "1.0"
+description: >
+  Interactive creative proposal pipeline for video generation.
+  Generates 2-3 differentiated creative proposals, lets the user select
+  and refine, builds a detailed shot-by-shot storyboard, confirms with
+  the user, then generates the final video with full budget tracking.
+  Ideal when the user wants creative options before committing to
+  expensive video generation.
+category: generated
+stability: alpha
+
+default_checkpoint_policy: guided
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/creative-proposal/executive-producer
+  budget_default_usd: 1.50
+  max_revisions_per_stage: 2
+  max_send_backs: 2
+
+required_skills:
+  - pipelines/creative-proposal/executive-producer
+  - pipelines/creative-proposal/proposal-director
+  - pipelines/creative-proposal/storyboard-director
+  - pipelines/creative-proposal/generate-director
+  - pipelines/creative-proposal/deliver-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - meta/pipeline-loader
+  - creative/creative-brief
+  - creative/copywriting
+  - creative/styleframe-direction
+  - creative/energy-arc
+  - creative/shot-recipe-library
+  - creative/duration-planning
+  - creative/transition-sound-caption
+  - creative/remotion-packaging
+  - creative/material-matching
+  - creative/creative-quality-gate
+  - creative/shot-planning
+  - creative/video-gen-prompting
+
+stages:
+  # ── Stage 1: Creative Proposal Generation ───────────────────────────
+
+  - name: proposal
+    skill: pipelines/creative-proposal/proposal-director
+    produces:
+      - proposals
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - 2-3 proposals generated, each clearly differentiated
+      - Each proposal specifies: theme, style tokens, copy direction, energy arc, material strategy, estimated shot count
+      - Proposals differ in at least 2 of: theme, style, mood, visual elements, pacing, copy angle
+      - Each proposal aligns with the user's original request and constraints
+      - Missing materials and generation fallbacks are explicit
+    success_criteria:
+      - proposal count is 2 or 3
+      - each proposal has all required fields filled
+      - no two proposals are near-identical
+
+  # ── Stage 2: User Selection (Interactive) ───────────────────────────
+
+  - name: selection
+    skill: pipelines/creative-proposal/executive-producer
+    required_artifacts_in:
+      - proposals
+    produces:
+      - selected_proposal
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - User has made a clear choice among proposals
+      - Any modifications specified by user are recorded
+      - Modified proposal still has complete specification
+      - Budget estimate presented and acknowledged
+    success_criteria:
+      - exactly one proposal selected
+      - selected proposal is structurally complete
+      - user modifications (if any) are applied
+
+  # ── Stage 3: Storyboard Generation ──────────────────────────────────
+
+  - name: storyboard
+    skill: pipelines/creative-proposal/storyboard-director
+    required_artifacts_in:
+      - selected_proposal
+    produces:
+      - storyboard
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Complete shot-by-shot breakdown with timing per shot
+      - Visual description for each shot (prompt-ready)
+      - Camera movement specified per shot (static, pan, tilt, zoom, dolly, tracking)
+      - Transition type between shots (cut, dissolve, wipe, fade)
+      - Each shot has recipe, purpose, energy, caption/copy cue, material strategy
+      - Shot count matches proposal target (±20%)
+      - Total duration matches proposal target (±10%)
+      - Visual diversity: not 3+ consecutive shots of same type
+    success_criteria:
+      - storyboard contains shots array with at least 2 shots
+      - each shot has: shot_number, duration_seconds, visual_description, camera_movement, transition
+      - storyboard includes style_tokens, energy_arc, duration_plan, caption_plan, audio_plan
+      - total duration within ±10% of target
+
+  # ── Stage 4: User Confirmation (Interactive) ────────────────────────
+
+  - name: confirm
+    skill: pipelines/creative-proposal/executive-producer
+    required_artifacts_in:
+      - storyboard
+    produces:
+      - confirmed_storyboard
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - User has reviewed the full storyboard
+      - Any requested adjustments are recorded and applied
+      - Final storyboard is locked for generation
+      - Estimated generation cost is within remaining budget
+    success_criteria:
+      - user has explicitly confirmed
+      - confirmed_storyboard is ready for generation
+
+  # ── Stage 5: Video Generation ───────────────────────────────────────
+
+  - name: generate
+    skill: pipelines/creative-proposal/generate-director
+    required_artifacts_in:
+      - confirmed_storyboard
+      - selected_proposal
+    produces:
+      - asset_manifest
+      - render_report
+    required_tools:
+      - text2image_generate
+      - image2video_gen
+      - merge2videos
+    optional_tools:
+      - audio_gen
+      - image2image_generate
+      - sequential_image_gen
+      - text2video_gen
+      - remotion_compose_video
+    tools_available:
+      - text2image_generate
+      - image2image_generate
+      - sequential_image_gen
+      - image2video_gen
+      - text2video_gen
+      - audio_gen
+      - merge2videos
+      - remotion_compose_video
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Keyframe images generated for all shots
+      - Video clips generated for all shots
+      - Character/style consistency maintained across shots
+      - User/source materials are used according to material_plan
+      - Caption/audio plans are preserved; generated audio is validated when available
+      - Remotion handoff is used when selected proposal needs captions, CTA, brand, data cards, or template packaging
+      - All generated files exist and are valid
+      - Merged final video plays correctly
+      - Budget tracked per API call; alert if > 90% consumed
+    success_criteria:
+      - asset_manifest covers all storyboard shots
+      - final video file exists and passes validation
+      - render_report records Remotion output or skipped/failed reason
+      - all file paths are absolute
+
+  # ── Stage 6: Delivery ───────────────────────────────────────────────
+
+  - name: deliver
+    skill: pipelines/creative-proposal/deliver-director
+    required_artifacts_in:
+      - render_report
+      - asset_manifest
+    produces:
+      - delivery_report
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Budget consumption fully reported
+      - Token usage accumulated and presented
+      - Generation time tracked and summarized
+      - Final video output path confirmed (absolute path)
+      - Per-stage cost breakdown provided
+    success_criteria:
+      - delivery_report includes budget_summary with tokens, time, cost
+      - delivery_report includes per-stage breakdown
+      - final video path is absolute and file exists

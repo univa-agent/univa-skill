@@ -1,0 +1,64 @@
+### 1. Task Objective
+The task is to analyze the following image and generate a detailed description of its content, as well as identify all the objects present in the image. The goal is to provide a detailed description, clear and precise overview of the visible elements, and highlight key objects.
+
+### 2. Generated Content
+You should generate the following content:
+
+- A detailed description of the image that covers all visible objects and their features.
+- A list of the names of all objects detected in the image.
+- The name(s) of the main target object(s) in the image.
+
+### 3. Object Segmentation Requirement
+The objects detected in the image must be identified and listed as the smallest indivisible entities. For example, if the image contains a "person with glasses and a t-shirt," the list should contain:
+- "person"
+- "glasses"
+- "t-shirt"
+
+### 4. Output Format
+The output should be in JSON format, containing the following fields:
+
+- `"description"`: A detailed paragraph describing the contents of the image.
+- `"objects"`: A list containing the names of all objects detected in the image, following the object segmentation requirement. Do not repeat the same object name multiple times in objects list.
+- `"main_target"`: A list including the names of the main target object(s). The main_target objects should be the smallest indivisible entities.
+
+### 5. Strict Output Format
+Please strictly adhere to the following output JSON format:
+```json
+{
+  "description": "A detailed description of the image content.",
+  "objects": [
+    "Object Name 1",
+    "Object Name 2",
+    "Object Name 3",
+    ...
+  ],
+  "main_target": [
+    "Main Object Name 1",
+    "Main Object Name 2",
+    ...
+  ]
+}
+```
+
+### 6. Example
+Input:
+```plaintext
+An image of a person sitting on a bench with a backpack and a book. A dog is running in the background.
+```
+Output:
+```json
+{
+  "description": "The image shows a person sitting on a bench with a backpack and a book. In the background, a dog is running. The person is wearing a backpack and holding a book, while the dog is running towards the camera.",
+  "objects": [
+    "person",
+    "bench",
+    "backpack",
+    "book",
+    "dog"
+  ],
+  "main_target": [
+    "person",
+    "dog"
+  ]
+}
+

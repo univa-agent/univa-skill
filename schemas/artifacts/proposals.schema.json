@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/proposals.schema.json",
+  "title": "Creative Proposals",
+  "description": "Set of 2-3 differentiated creative proposals produced by the proposal stage.",
+  "type": "object",
+  "required": ["proposals", "generated_at", "user_request_summary"],
+  "properties": {
+    "proposals": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "description": "The creative proposals for the user to choose from.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "title", "theme", "style_direction",
+          "mood_board_keywords", "visual_elements", "rough_shot_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier like 'proposal_1'"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short catchy title for the proposal"
+          },
+          "theme": {
+            "type": "string",
+            "description": "Core theme and narrative direction"
+          },
+          "style_direction": {
+            "type": "string",
+            "description": "Visual style reference and direction"
+          },
+          "mood_board_keywords": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 3,
+            "description": "3-6 keywords describing the mood/atmosphere"
+          },
+          "visual_elements": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 2,
+            "description": "Key visual elements, color palette, lighting"
+          },
+          "rough_shot_count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "Estimated number of shots"
+          },
+          "target_duration_seconds": {
+            "type": "integer",
+            "minimum": 5,
+            "description": "Target total duration in seconds"
+          },
+          "differentiation_summary": {
+            "type": "string",
+            "description": "What makes this proposal unique vs the others"
+          }
+        }
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO8601 timestamp of generation"
+    },
+    "user_request_summary": {
+      "type": "string",
+      "description": "Brief summary of original user request"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+# Media Atomic Executive Producer - Pipeline Director Skill
+
+## Stage Role
+
+Use this director to analyze, proposal, confirm, execute, validate, and deliver for single image/audio/speech/simple media tasks.
+
+## Responsibilities
+
+Apply the media review gate to atomic media tasks with `media_plan.json`, validation, review, approval, exact MCP request execution, output validation, and delivery reporting.
+
+## Required Inputs
+
+- User request and current pipeline state.
+- Relevant core, creative, meta, theme, and user preference skills.
+- Source assets, references, constraints, and prior artifacts when applicable.
+- Pipeline YAML success criteria and checkpoint requirements.
+
+## Required Outputs
+
+- Stage artifact or checkpoint named by the active pipeline.
+- English assumptions, decisions, validation issues, and next-step status.
+- Exact MCP request preview for any future media-producing or media-mutating step.
+- `awaiting_human` checkpoint whenever approval or user choice is required.
+
+## Invariants
+
+- Do not call generation/editing/mux/merge tools before the media review gate is approved for the displayed plan version.
+- Execute only approved prompts, parameters, timing, references, and source paths.
+- Preserve project artifacts and verify real files before delivery.
+- Do not weaken safety, factual research, user preference precedence, or tool contracts.

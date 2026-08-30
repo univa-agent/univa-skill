@@ -1,0 +1,13 @@
+{
+  "include": ["univa"],
+  "extraPaths": [
+    "."
+  ],
+  "venvPath": "/home/u2023311g18/.conda/envs",
+  "venv": "univa",
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "warning",
+  "reportUnusedImport": "warning",
+  "reportUnusedVariable": "hint"
+}

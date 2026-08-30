@@ -1,0 +1,49 @@
+{
+  "videoSrc": "jobs/20260820000649_579f72d5/0819232900.mp4",
+  "title": "电感出发",
+  "subtitle": "城市通勤新方式",
+  "durationSeconds": 5.086,
+  "captions": [
+    {
+      "text": "电感出发",
+      "startSeconds": 0.2,
+      "endSeconds": 1.6
+    },
+    {
+      "text": "一脚加速，城市即刻响应",
+      "startSeconds": 1.6,
+      "endSeconds": 3.6
+    },
+    {
+      "text": "即刻预约体验",
+      "startSeconds": 3.6,
+      "endSeconds": 5.0
+    }
+  ],
+  "overlays": [
+    {
+      "id": "overlay_01",
+      "type": "cta",
+      "text": "即刻预约体验",
+      "startSeconds": 3.6,
+      "endSeconds": 5.0,
+      "position": "bottom_center",
+      "eyebrow": null,
+      "value": null,
+      "accentColor": null
+    }
+  ],
+  "brand": {
+    "name": "EV"
+  },
+  "theme": {
+    "backgroundColor": "#101820",
+    "surfaceColor": "rgba(16, 24, 32, 0.78)",
+    "textColor": "#F7FAFC",
+    "mutedTextColor": "#D7DEE8",
+    "accentColor": "#2EC4B6",
+    "captionBackground": "rgba(7, 12, 18, 0.72)"
+  },
+  "showProgress": true,
+  "fit": "cover"
+}

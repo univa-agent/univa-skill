@@ -1,0 +1,35 @@
+{
+  "videoSrc": "jobs/20260819221408_23552480/0819214710.mp4",
+  "title": "漫画决斗",
+  "subtitle": "一击定胜负",
+  "durationSeconds": 5.086,
+  "captions": [
+    {
+      "text": "突进！",
+      "startSeconds": 1.2,
+      "endSeconds": 2.0
+    },
+    {
+      "text": "闪避！",
+      "startSeconds": 2.8,
+      "endSeconds": 3.6
+    },
+    {
+      "text": "必杀！",
+      "startSeconds": 4.35,
+      "endSeconds": 5.0
+    }
+  ],
+  "overlays": [],
+  "brand": {},
+  "theme": {
+    "backgroundColor": "#101820",
+    "surfaceColor": "rgba(8, 8, 8, 0.62)",
+    "textColor": "#FFFFFF",
+    "mutedTextColor": "#D7DEE8",
+    "accentColor": "#F2D94E",
+    "captionBackground": "rgba(8, 8, 8, 0.68)"
+  },
+  "showProgress": false,
+  "fit": "cover"
+}

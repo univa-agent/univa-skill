@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/delivery_report.schema.json",
+  "title": "Delivery Report",
+  "description": "Final delivery report with budget consumption, token summary, and output paths.",
+  "type": "object",
+  "required": ["output_path", "budget_summary", "pipeline_name", "completed_at"],
+  "properties": {
+    "pipeline_name": {
+      "type": "string",
+      "description": "Name of the pipeline that was executed"
+    },
+    "completed_at": {
+      "type": "string",
+      "description": "ISO8601 timestamp of pipeline completion"
+    },
+    "output_path": {
+      "type": "string",
+      "description": "Absolute path to the final video file"
+    },
+    "total_duration_seconds": {
+      "type": "number",
+      "description": "Duration of the generated video in seconds"
+    },
+    "budget_summary": {
+      "type": "object",
+      "required": ["budget_limit_usd", "total_spent_usd", "remaining_usd", "llm", "tools"],
+      "properties": {
+        "budget_limit_usd": {"type": "number"},
+        "total_spent_usd": {"type": "number"},
+        "remaining_usd": {"type": "number"},
+        "budget_usage_pct": {"type": "number"},
+        "llm": {
+          "type": "object",
+          "properties": {
+            "calls": {"type": "integer"},
+            "tokens_in": {"type": "integer"},
+            "tokens_out": {"type": "integer"},
+            "total_tokens": {"type": "integer"},
+            "cost_usd": {"type": "number"}
+          }
+        },
+        "tools": {
+          "type": "object",
+          "properties": {
+            "calls": {"type": "integer"},
+            "total_duration_seconds": {"type": "number"},
+            "estimated_cost_usd": {"type": "number"}
+          }
+        }
+      }
+    },
+    "stage_breakdown": {
+      "type": "object",
+      "description": "Per-stage cost breakdown",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "llm_calls": {"type": "integer"},
+          "tokens": {"type": "integer"},
+          "llm_cost": {"type": "number"},
+          "tool_calls": {"type": "integer"},
+          "tool_cost": {"type": "number"},
+          "tool_time": {"type": "number"}
+        }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "description": "Timeline of all stages with their durations",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage": {"type": "string"},
+          "status": {"type": "string"},
+          "duration_seconds": {"type": "number"}
+        }
+      }
+    }
+  }
+}

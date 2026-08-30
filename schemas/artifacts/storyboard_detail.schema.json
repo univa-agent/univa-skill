@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/storyboard_detail.schema.json",
+  "title": "Detailed Storyboard",
+  "description": "Shot-by-shot storyboard produced by the storyboard stage, ready for video generation.",
+  "type": "object",
+  "required": ["shots", "total_duration_seconds", "proposal_id", "generated_at"],
+  "properties": {
+    "proposal_id": {
+      "type": "string",
+      "description": "Reference to the selected proposal"
+    },
+    "total_duration_seconds": {
+      "type": "number",
+      "minimum": 5,
+      "description": "Sum of all shot durations"
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO8601 timestamp"
+    },
+    "shots": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": [
+          "shot_number", "duration_seconds", "visual_description",
+          "camera_movement", "shot_type", "transition_from_previous"
+        ],
+        "properties": {
+          "shot_number": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Sequential shot number (1-based)"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 15,
+            "description": "Duration of this shot in seconds"
+          },
+          "visual_description": {
+            "type": "string",
+            "description": "Detailed visual description, prompt-ready for image/video generation"
+          },
+          "camera_movement": {
+            "type": "string",
+            "enum": ["static", "pan_left", "pan_right", "tilt_up", "tilt_down", "zoom_in", "zoom_out", "dolly_in", "dolly_out", "tracking", "handheld"],
+            "description": "Camera movement during the shot"
+          },
+          "shot_type": {
+            "type": "string",
+            "enum": ["extreme_wide", "wide", "medium_wide", "medium", "medium_close_up", "close_up", "extreme_close_up"],
+            "description": "Shot framing/size"
+          },
+          "transition_from_previous": {
+            "type": "string",
+            "enum": ["cut", "dissolve", "fade_in", "fade_out", "wipe_left", "wipe_right", "none"],
+            "description": "Transition from the previous shot (use 'none' for first shot)"
+          },
+          "narrative_beat": {
+            "type": "string",
+            "description": "Optional: narrative purpose (hook, setup, build, climax, landing)"
+          }
+        }
+      }
+    },
+    "style_anchors": {
+      "type": "object",
+      "description": "Style anchors injected into all generation prompts for consistency",
+      "properties": {
+        "color_palette": {"type": "string"},
+        "lighting": {"type": "string"},
+        "atmosphere": {"type": "string"},
+        "style_keywords": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

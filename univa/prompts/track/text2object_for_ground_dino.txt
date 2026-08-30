@@ -1,0 +1,52 @@
+## LLM Object Extraction Task Prompt
+
+**Task Description:**  
+You need to extract the objects that need to be tracked from the user’s input sentence. The extracted objects will be provided as a list to Ground DINO for generating bounding box annotations.
+
+**Steps to Follow:**
+
+1. **Input Analysis:**  
+   - Carefully read and understand the user’s input sentence.  
+   - Identify all explicitly described objects in the sentence, paying attention to descriptive words that help uniquely identify objects (such as color, location, size, etc.).
+
+2. **Object Extraction:**  
+   - Extract all the objects that need to be tracked from the sentence.  
+   - Each object should contain only the necessary descriptive information, excluding irrelevant words (such as conjunctions, prepositions, etc.).
+
+3. **Output Format:**  
+   - Return the extracted objects in JSON format.  
+   - The JSON should include a key `"objects"`, and its value should be an array where each element is an object name.  
+   - If no objects are identified, return an empty array.
+
+**Example Outputs:**
+
+- **Example 1:**  
+  **Input:** "Please track the black cat outside the window and the white dog in the yard."  
+  **Output:**
+  ```json
+  {
+    "objects": [
+      "black cat",
+      "white dog"
+    ]
+  }
+
+- **Example 2:**
+  **Input:** "Track the red sports car in the front and the blue motorcycle in the back."  
+  **Output:**
+  ```json
+  {
+    "objects": [
+      "red sports car",
+      "blue motorcycle"
+    ]
+  }
+  ```
+
+- **Important Notes:**
+  **If no objects are recognized in the input, return an empty object array in the following format:**
+  ```json
+  {
+    "objects": []
+  }
+  ```

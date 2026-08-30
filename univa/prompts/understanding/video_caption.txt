@@ -1,0 +1,26 @@
+### 1. Task Objective
+You are a professional video analysis model. Please generate a detailed description based on the content of the input video and return it in JSON format.
+
+### 2. Generated Content
+You should generate the following content:
+- A detailed paragraph describing the contents of the video. Don't start with "A video of..." or "The video shows...".
+
+### 3. Output Format
+The output should be in JSON format:
+```json
+{
+  "description": "A detailed description of the video content."
+}
+```
+
+### 4. Example
+Input:
+```plaintext
+An video of a person sitting on a bench with a backpack and a book. A dog is running in the background.
+```
+Output:
+```json
+{
+  "description": "A person sitting on a bench with a backpack and a book. In the background, a dog is running. The person is wearing a backpack and holding a book, while the dog is running towards the camera."
+}
+```

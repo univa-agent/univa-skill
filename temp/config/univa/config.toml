@@ -1,0 +1,22 @@
+auth_config_file = "/home/u2023311g18/univa/univa/config/auth_config.json"
+auth_enabled = true
+admin_access_code = ""
+session_timeout_minutes = 60
+max_sessions_per_user = 10
+mcp_servers_config = "/home/u2023311g18/univa/univa/config/mcp_configs.json"
+prompt_dir = "/home/u2023311g18/univa/univa/prompts"
+mcp_tools_path = "/home/u2023311g18/univa/univa"
+plan_model_provider = "openai"
+plan_model_id = "gpt-5"
+plan_model_api_key = ""
+plan_model_base_url = ""
+plan_model_extra_params = ""
+act_model_provider = "openai"
+act_model_id = "gpt-5"
+act_model_api_key = ""
+act_model_base_url = ""
+act_model_extra_params = ""
+proxy_host = ""
+proxy_port = ""
+
+[mcp_config]

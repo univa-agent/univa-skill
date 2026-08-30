@@ -1,0 +1,135 @@
+# UniVA filtered runtime requirements for CPU, mismatched CUDA, or Windows.
+#
+# Generated from requirements.txt by removing CUDA/PyTorch-pinned packages:
+#   --extra-index-url https://download.pytorch.org/whl/cu128
+#   cuda-*
+#   nvidia-*
+#   triton*
+#   torch==*
+#   torchvision==*
+#   torchaudio==*
+#
+# This keeps API-backed orchestration, backend, MCP routing, media merge, and
+# provider-based image/video/audio generation usable. Local checkpoint features
+# that require PyTorch still need a platform-compatible torch install.
+agno==2.6.12
+aiofiles==25.1.0
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anthropic==0.109.1
+anyio==4.13.0
+APScheduler==3.11.2
+attrs==26.1.0
+audioread==3.1.0
+certifi==2026.5.20
+cffi==2.0.0
+charset-normalizer==3.4.7
+click==8.4.1
+contourpy==1.3.2
+cryptography==48.0.1
+cycler==0.12.1
+decorator==5.3.1
+decord==0.6.0
+distro==1.9.0
+docstring-parser==0.18.0
+exceptiongroup==1.3.1
+fastapi==0.136.3
+filelock==3.29.0
+fonttools==4.63.0
+fsspec==2026.4.0
+gitdb==4.0.12
+GitPython==3.1.50
+greenlet==3.5.1
+h11==0.16.0
+h2==4.3.0
+hf-xet==1.5.1
+hpack==4.1.0
+httpcore==1.0.9
+httpx==0.28.1
+httpx-sse==0.4.3
+huggingface-hub==1.18.0
+hyperframe==6.1.0
+idna==3.18
+imageio==2.37.3
+imageio-ffmpeg==0.6.0
+Jinja2==3.1.6
+jiter==0.15.0
+joblib==1.5.3
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+kiwisolver==1.5.0
+lazy-loader==0.5
+librosa==0.11.0
+llvmlite==0.48.0
+loguru==0.7.3
+markdown-it-py==4.2.0
+MarkupSafe==3.0.3
+matplotlib==3.10.9
+mcp==1.27.2
+mdurl==0.1.2
+moviepy==2.2.1
+mpmath==1.3.0
+msgpack==1.2.1
+natsort==8.4.0
+networkx==3.4.2
+numba==0.66.0
+numpy==2.2.6
+openai==2.41.0
+opencv-python==4.13.0.92
+opencv-python-headless==4.13.0.92
+packaging==26.0
+pillow==11.3.0
+platformdirs==4.10.0
+polars==1.41.2
+polars-runtime-32==1.41.2
+pooch==1.9.0
+proglog==0.1.12
+prompt-toolkit==3.0.52
+psutil==7.2.2
+pycparser==3.0
+pydantic==2.13.4
+pydantic-core==2.46.4
+pydantic-settings==2.14.1
+Pygments==2.20.0
+PyJWT==2.13.0
+pyparsing==3.3.2
+pyperclip==1.11.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.2
+python-multipart==0.0.32
+PyYAML==6.0.3
+referencing==0.37.0
+regex==2026.5.9
+requests==2.34.2
+rich==15.0.0
+rpds-py==0.30.0
+safetensors==0.8.0
+scikit-learn==1.7.2
+scipy==1.15.3
+setuptools==70.2.0
+shellingham==1.5.4
+six==1.17.0
+smmap==5.0.3
+sniffio==1.3.1
+soundfile==0.14.0
+soxr==1.1.0
+SQLAlchemy==2.0.50
+sse-starlette==3.4.4
+starlette==1.2.1
+sympy==1.14.0
+tabulate==0.10.0
+threadpoolctl==3.6.0
+tokenizers==0.22.2
+toml==0.10.2
+tqdm==4.68.2
+transformers==5.10.2
+typer==0.25.1
+typing-extensions==4.15.0
+typing-inspection==0.4.2
+tzlocal==5.3.1
+ultralytics==8.4.63
+ultralytics-thop==2.0.20
+urllib3==2.7.0
+uvicorn==0.49.0
+wcwidth==0.8.1
+wheel==0.46.3

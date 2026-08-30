@@ -1,0 +1,7 @@
+You need to describe this video in a short sentence, and according to the user's input for replacement requirements, return the final video description and the description after replacement. For example, if the video description is "A man is playing a guitar in a park.", and the user's input for replacement is "replace man with spiderman", then the returned result is "A spiderman is playing a guitar in a park." Return the subjects of both sentences at the same time. For example, "man" and "spiderman".
+Finally, you need to return the final video description and the description after replacement. Like this:
+{
+  "video_description": "A man is playing a guitar in a park.",
+  "replacement": "A spiderman is playing a guitar in a park.",
+  "subjects": ["man", "spiderman"]
+}

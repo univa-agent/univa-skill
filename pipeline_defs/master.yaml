@@ -1,0 +1,133 @@
+name: master
+version: "1.0"
+description: >
+  Universal entry-point pipeline for all UniVA requests.
+  Analyzes user intent, routes to the appropriate specialized pipeline
+  (story-video, creative-proposal, video-edit, video-understand),
+  or generates a dynamic specialized pipeline if no existing one fits.
+  This is the single gateway through which all user requests flow.
+category: meta
+stability: beta
+
+default_checkpoint_policy: guided
+
+orchestration:
+  mode: master-router
+  skill: pipelines/master/router
+  budget_default_usd: 1.50
+
+# ── Master Pipeline: Intent Analysis → Routing → Execution ─────────
+
+required_skills:
+  - meta/plan-agent-protocol
+  - meta/pipeline-loader
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - meta/skill-creator
+
+stages:
+  # ── Stage 1: Intent Analysis ──────────────────────────────────────
+
+  - name: analyze
+    skill: pipelines/master/router
+    produces:
+      - intent_analysis
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - User intent correctly classified
+      - Appropriate pipeline identified or new one needed
+      - Constraints extracted (duration, style, platform)
+    success_criteria:
+      - intent_analysis contains: category, recommended_pipeline, confidence, constraints
+
+  # ── Stage 2: Pipeline Resolution ──────────────────────────────────
+
+  - name: resolve
+    skill: pipelines/master/router
+    required_artifacts_in:
+      - intent_analysis
+    produces:
+      - pipeline_decision
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Selected pipeline exists in pipeline_defs/ or will be dynamically created
+      - Pipeline stages match user requirements
+      - Required tools are available in MCP config
+    success_criteria:
+      - pipeline_decision contains: pipeline_name, resolution_method (existing|dynamic), stages_to_execute
+
+  # ── Stage 3: Execute (delegates to resolved pipeline) ─────────────
+
+  - name: execute
+    skill: pipelines/master/router
+    required_artifacts_in:
+      - pipeline_decision
+    produces:
+      - execution_results
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Pipeline execution completed successfully
+      - All stages of the resolved pipeline ran
+      - Final output exists and is valid
+    success_criteria:
+      - execution_results contains output from the resolved pipeline's final stage
+
+# ── Routing Table ──────────────────────────────────────────────────
+
+routing:
+  rules:
+    - intent: story_video
+      keywords: [story, narrative, short film, story video, narrative video]
+      pipeline: story-video
+      description: Multi-shot narrative video from text description
+
+    - intent: creative_proposal
+      keywords: [creative proposal, proposal, concept options, multiple options, storyboard options]
+      pipeline: creative-proposal
+      description: Interactive creative proposal → selection → storyboard → generation
+
+    - intent: atomic_media
+      keywords: [generate image, create image, edit image, image editing, generate audio, generate music, generate sound, generate speech, text to image, image to image]
+      pipeline: media-atomic
+      description: Compact reviewed media plan -> approval -> exact MCP execution
+
+    - intent: video_edit
+      keywords: [edit, modify, replace, style transfer, background replacement, repainting, pose reference]
+      pipeline: video-edit
+      description: Video editing, style transfer, object replacement
+
+    - intent: video_understand
+      keywords: [analyze, understand, describe, inspect, summarize, content analysis]
+      pipeline: video-understand
+      description: Video content analysis and understanding
+
+    - intent: direct_readonly
+      keywords: []
+      pipeline: null
+      description: Read-only or administrative direct action only; media creation and mutation require a reviewed pipeline
+
+  fallback: dynamic
+  dynamic_creation:
+    enabled: true
+    max_custom_stages: 5
+    require_skill_manifest: true
+
+# ── Dynamic Pipeline Generation (when no existing pipeline matches) ─
+
+dynamic_pipeline_template:
+  name: custom-{intent}
+  version: "0.1.0"
+  description: "Dynamically generated pipeline for: {user_request_summary}"
+  category: generated
+  stability: alpha
+  orchestration:
+    mode: executive-producer
+    budget_default_usd: 1.00
+  stages: []
+  # Stages are appended dynamically based on intent analysis

@@ -1,0 +1,121 @@
+name: video-edit
+version: "2.0"
+description: >
+  Multi-round interactive video editing pipeline.  Supports iterative
+  refinement: upload → analyze → propose edits → user confirms → execute
+  → review → iterate until user is satisfied.
+  Uses video_editing MCP tools: depth_modify, style_transfer, repainting, pose_reference.
+category: editing
+stability: beta
+
+default_checkpoint_policy: guided
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/video-edit/executive-producer
+  budget_default_usd: 0.50
+  max_revisions_per_stage: 3
+  max_iterations: 10
+
+required_skills:
+  - pipelines/video-edit/executive-producer
+  - pipelines/video-edit/analyze-director
+  - pipelines/video-edit/proposal-director
+  - pipelines/video-edit/execute-director
+  - meta/reviewer
+  - meta/checkpoint-protocol
+  - core/video-editing
+  - core/video-understanding
+
+stages:
+  # ── Stage 1: Media Reception & Analysis ────────────────────────────
+
+  - name: analyze
+    skill: pipelines/video-edit/analyze-director
+    produces:
+      - media_analysis
+    tools_available:
+      - vision2text_gen
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Source media identified (video/image path provided or prompted for)
+      - Media content analyzed (subject, background, objects, style)
+      - User's editing intent extracted from natural language request
+    success_criteria:
+      - media_analysis contains source_path, content_summary, edit_intent
+
+  # ── Stage 2: Edit Proposal Generation ──────────────────────────────
+
+  - name: proposal
+    skill: pipelines/video-edit/proposal-director
+    required_artifacts_in:
+      - media_analysis
+    produces:
+      - edit_proposal
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Specific edit actions described (tool, parameters, expected result)
+      - Proposed edits match user's stated intent
+      - Tool selection correct for the edit type (depth_modify / style_transfer / repainting)
+      - Prompt engineering guidance followed (from core/video-editing)
+    success_criteria:
+      - edit_proposal contains tool_name, prompt, parameters
+      - edit_proposal includes expected_outcome description
+      - User must explicitly approve before execution
+
+  # ── Stage 3: Execute Edit ──────────────────────────────────────────
+
+  - name: execute
+    skill: pipelines/video-edit/execute-director
+    required_artifacts_in:
+      - edit_proposal
+    produces:
+      - edit_result
+    required_tools:
+      - depth_modify
+      - style_transfer
+      - repainting
+      - pose_reference
+    tools_available:
+      - depth_modify
+      - style_transfer
+      - repainting
+      - pose_reference
+      - vision2text_gen
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - MCP tool call succeeded
+      - Output file exists and is valid
+      - Edit quality acceptable (structural integrity, style consistency, boundary naturalness)
+      - Output path saved as absolute path
+    success_criteria:
+      - edit_result contains output_path (absolute), tool_used, duration_seconds
+      - output file exists and is playable
+
+  # ── Stage 4: Review & Iterate ──────────────────────────────────────
+
+  - name: review
+    skill: pipelines/video-edit/executive-producer
+    required_artifacts_in:
+      - edit_result
+      - media_analysis
+    produces:
+      - iteration_decision
+    tools_available:
+      - vision2text_gen
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - Result presented to user with output path and summary
+      - User asked: "Do you need any further changes?"
+      - If user wants more edits: capture new request, loop back to proposal stage
+      - If user is satisfied: finalize and deliver
+      - Iteration count tracked (max 10 rounds)
+    success_criteria:
+      - 'iteration_decision contains action: continue or finalize'
+      - If continue: new_edit_request captured
+      - If finalize: final_output_path confirmed

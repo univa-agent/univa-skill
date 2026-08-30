@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/artifacts/asset_manifest.schema.json",
+  "title": "Asset Manifest",
+  "description": "The asset manifest produced by the assets stage. Catalogs all generated media files.",
+  "type": "object",
+  "required": ["assets", "generated_at"],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset_id", "type", "file_path", "shot_id"],
+        "properties": {
+          "asset_id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["character_image", "keyframe_image", "video_segment", "audio", "merged_video"]
+          },
+          "file_path": { "type": "string" },
+          "shot_id": { "type": "string" },
+          "character_id": { "type": "string" },
+          "tool_used": { "type": "string" },
+          "prompt_used": { "type": "string" },
+          "generation_params": { "type": "object" },
+          "file_size_bytes": { "type": "integer" },
+          "duration_seconds": { "type": "number" },
+          "resolution": { "type": "string" }
+        }
+      }
+    },
+    "cost_summary": {
+      "type": "object",
+      "properties": {
+        "total_spent_usd": { "type": "number" },
+        "per_tool_breakdown": { "type": "object" }
+      }
+    }
+  }
+}

@@ -1,0 +1,140 @@
+name: media-atomic
+version: "1.0"
+description: >
+  Compact reviewed pipeline for standalone image, image-sequence, audio,
+  speech, and supported non-video media editing tasks.
+category: media
+stability: beta
+
+default_checkpoint_policy: strict
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/media-atomic/executive-producer
+  budget_default_usd: 1.00
+  max_send_backs: 2
+
+required_skills:
+  - meta/media-review-gate
+  - meta/generate-pipeline
+  - meta/edit-pipeline
+  - meta/reviewer
+  - meta/quality-gate
+  - meta/checkpoint-protocol
+  - core/prompt-validator
+  - core/wavespeed-image-gen
+  - core/audio-gen
+
+stages:
+  - name: analyze
+    skill: pipelines/media-atomic/executive-producer
+    produces:
+      - research_brief
+      - source_analysis
+    tools_available:
+      - vision2text_gen
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Task media type and generate/edit intent are explicit
+      - Relevant repo skills and actual MCP implementation are loaded
+      - Research limitations or source analysis are recorded
+      - Unsupported mutations are marked blocked
+    success_criteria:
+      - analysis identifies the registered UniVA tool or a blocked reason
+
+  - name: proposal
+    skill: pipelines/media-atomic/executive-producer
+    required_artifacts_in:
+      - research_brief
+      - source_analysis
+    produces:
+      - media_plan
+      - edit_proposal
+      - media_plan_validation
+      - media_plan_review
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Exact MCP request preview is complete
+      - Prompt or speech text is expanded before review
+      - References, duration, count, voice, preservation, and exclusions are explicit
+      - Validation issues and expected output policy are visible
+    success_criteria:
+      - one executable media_plan or edit_proposal exists
+      - approval_required is true
+      - review status is awaiting_human
+
+  - name: confirm
+    skill: pipelines/media-atomic/executive-producer
+    required_artifacts_in:
+      - media_plan_review
+    produces:
+      - approved_media_contract
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    review_focus:
+      - User reviewed the exact tool request
+      - Approval or requested revisions are recorded
+      - Approved contract version is locked
+    success_criteria:
+      - user explicitly approved the displayed contract version
+
+  - name: execute
+    skill: pipelines/media-atomic/executive-producer
+    required_artifacts_in:
+      - approved_media_contract
+    produces:
+      - media_result
+    tools_available:
+      - text2image_generate
+      - image2image_generate
+      - sequential_image_gen
+      - audio_gen
+      - speech_gen
+      - generate_audio_assets_from_plan
+      - mux_audio_timeline
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Only the approved exact request is passed to the selected tool
+      - Source media is not overwritten unless explicitly approved
+      - Tool result contains an absolute output path
+    success_criteria:
+      - selected registered tool ran once per approved request
+      - generated output exists
+
+  - name: validate
+    skill: pipelines/media-atomic/executive-producer
+    required_artifacts_in:
+      - media_result
+    produces:
+      - media_quality_report
+    tools_available:
+      - vision2text_gen
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus:
+      - Output exists and has non-zero size
+      - Output format and requested media type match
+      - Result is compared with approved intent where supported
+    success_criteria:
+      - file existence validation passes
+      - deviations are recorded
+
+  - name: deliver
+    skill: pipelines/media-atomic/executive-producer
+    required_artifacts_in:
+      - media_quality_report
+    produces:
+      - delivery_report
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    review_focus:
+      - Approved plan, decision, tool result, and final files are linked
+      - Final paths are absolute and verified
+    success_criteria:
+      - delivery_report accurately distinguishes planned, blocked, failed, and delivered

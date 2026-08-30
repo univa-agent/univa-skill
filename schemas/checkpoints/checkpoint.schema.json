@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://univa.online/schemas/checkpoints/checkpoint.schema.json",
+  "title": "Pipeline Stage Checkpoint",
+  "description": "Schema for checkpoint files written after each pipeline stage.",
+  "type": "object",
+  "required": ["pipeline", "stage", "status", "timestamp", "session_id"],
+  "properties": {
+    "pipeline": {
+      "type": "string",
+      "description": "Pipeline name, matching pipeline_defs/<name>.yaml"
+    },
+    "stage": {
+      "type": "string",
+      "description": "Stage name within the pipeline"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["in_progress", "awaiting_human", "completed", "failed"],
+      "description": "Current status of this stage"
+    },
+    "human_approved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether a human has approved this stage (required when human_approval_default=true)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of checkpoint write"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Session identifier for this production run"
+    },
+    "artifact_path": {
+      "type": "string",
+      "description": "Path to the canonical artifact produced by this stage"
+    },
+    "review_summary": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "type": "string",
+          "enum": ["PASS", "REVISE", "BLOCKED"]
+        },
+        "critical_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "suggestion_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "cost_snapshot": {
+      "type": "object",
+      "properties": {
+        "spent_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "remaining_usd": {
+          "type": "number"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Stage-specific metadata (e.g., partial_progress during assets stage)",
+      "additionalProperties": true
+    }
+  }
+}
