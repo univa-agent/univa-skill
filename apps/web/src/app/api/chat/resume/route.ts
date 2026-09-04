@@ -30,11 +30,13 @@ export async function POST(req: NextRequest) {
     }
 
     const targetUrl = `${AGENT_API_URL}/chat/resume`;
+    const accessCode = req.headers.get('x-access-code');
 
     const response = await undiciFetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(accessCode ? { 'X-Access-Code': accessCode } : {}),
       },
       body: JSON.stringify({
         session_id,

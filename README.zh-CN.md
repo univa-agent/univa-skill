@@ -11,7 +11,7 @@
 <table>
   <tr>
     <td width="50%" align="center">
-        <img src="docs/assets/readme/Univa-skill.png" alt="Sports crowd sequence video preview" width="60%">
+        <img src="docs/assets/readme/Univa-skill.png" alt="Sports crowd sequence video preview" width="80%">
     </td>
   </tr>
 </table>
@@ -58,33 +58,27 @@ Create a three-shot travel video with ambience, smooth transitions, and no narra
 <table>
   <tr>
     <td width="50%">
-      <a href="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4">
-        <img src="docs/assets/readme/olympics.png" alt="东京奥运风格宣传片视频预览" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4">观看视频</a> - 东京奥运风格宣传片，包含规划后的多镜头合成及分镜包装。</sub>
+      <video controls src="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4" title="Title"></video>
+      东京奥运风格宣传片，包含规划后的多镜头合成及分镜包装。
     </td>
     <td width="50%">
-      <a href="docs/assets/readme/stadium-crowd-story.mp4">
-        <img src="docs/assets/readme/smooth-crossfade-poster.jpg" alt="体育观众视频预览" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/stadium-crowd-story.mp4">观看视频</a> - 体育观众，动态视角变换，多镜头融合。</sub>
+    <video controls src="docs/assets/readme/stadium-crowd-story.mp4" title="Title"></video>
+    体育观众，动态视角变换，多镜头融合。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <a href="docs/assets/readme/comic-action-short.mp4">
-        <img src="docs/assets/readme/anime-fight-poster.jpg" alt="漫画风动作短片视频预览" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/comic-action-short.mp4">观看视频</a> - 漫画风动作短片，包含风格化运动、字幕和角色聚焦构图。</sub>
+      <video controls src="docs/assets/readme/comic-action-short.mp4" title="Title"></video>
+      漫画风动作短片，包含风格化运动、字幕和角色聚焦构图。
     </td>
     <td width="50%">
-      <a href="docs/assets/readme/desert-car.mp4">
-        <img src="docs/assets/readme/desert.png" alt="沙漠越野车短片视频预览" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/desert-car.mp4">观看视频</a> - 沙漠越野车短片，红色车辆，突出光影。</sub>
+      <video controls src="docs/assets/readme/desert-car.mp4" title="Title"></video>
+      沙漠越野车短片，红色车辆，突出光影效果。
     </td>
   </tr>
 </table>
+
+
 
 ## UniVA-SKILL 的不同之处
 

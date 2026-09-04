@@ -2,7 +2,7 @@
 skill_id: theme_product_advertising
 name: Product Advertising
 description: Generation quality enhancement skill for product ads, product promotion, commerce videos, advertising films, and conversion-oriented marketing videos; strengthens prompt detail, visual style, storyboard logic, content structure, scene design, and audio planning while preserving the main workflow.
-trigger_keywords: [product ad, product promotion, commerce video, advertisement, marketing video]
+trigger_keywords: [product ad, product promotion, commerce video, advertisement, marketing video, 商品广告, 产品广告, 广告视频, 推广, 宣传]
 match_rule:
   type: keyword_semantic_hybrid
   threshold: 0.8
@@ -15,7 +15,7 @@ optimization_guide:
   prompt_enhancement: Highlight hero product identity, the single strongest benefit, material or function close-up, use scenario, proof cue, brand tone, and clear CTA; do not invent unsupported efficacy, specifications, or certifications.
   visual_style: Packshot and hero close-ups, tactile material detail, macro feature demo, supported before-after contrast, hand or use interaction, packaging, and brand-color lighting.
   storyboard_logic: thumb-stopping visual hook -> problem or use case -> feature proof -> benefit in action -> trust cue -> CTA.
-  content_structure: One benefit per shot, short conversion copy, exact product name only if provided, and a clear but not pushy CTA.
+  content_structure: One benefit per shot, short conversion copy, exact product name only if provided, and a clear but not pushy CTA（行动号召）.
   scene_design: Tabletop studio, lifestyle use, lab or proof setup, unboxing, retail/package display, or customer scenario based on product type.
   audio_design: Bright branded BGM, product handling clicks, swipes, pours or opening sounds, and emphasis stingers on claims or CTA.
 examples:

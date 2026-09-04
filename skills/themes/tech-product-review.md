@@ -2,7 +2,7 @@
 skill_id: theme_tech_product_review
 name: Tech Product Review
 description: Generation quality enhancement skill for technology, digital products, reviews, unboxing, specifications, experience, comparisons, or buying advice; strengthens prompt detail, visual style, storyboard logic, content structure, scene design, and audio planning while preserving the main workflow.
-trigger_keywords: [technology, digital product, review, unboxing, specs]
+trigger_keywords: [technology, digital product, review, unboxing, specs, 科技, 产品评测, 开箱, 参数, 性能]
 match_rule:
   type: keyword_semantic_hybrid
   threshold: 0.8

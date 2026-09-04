@@ -12,7 +12,7 @@
 <table>
   <tr>
     <td width="50%" align="center">
-        <img src="docs/assets/readme/Univa-skill.png" alt="Sports crowd sequence video preview" width="60%">
+        <img src="docs/assets/readme/Univa-skill.png" alt="Sports crowd sequence video preview" width="80%">
     </td>
   </tr>
 </table>
@@ -61,33 +61,26 @@ Create a three-shot travel video with ambience, smooth transitions, and no narra
 <table>
   <tr>
     <td width="50%">
-      <a href="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4">
-        <img src="docs/assets/readme/olympics.png" alt="Tokyo Olympics-style promo video preview" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4">Watch video</a> - Tokyo Olympics-style promo with planned multi-shot composition and storyboard packaging.</sub>
+      <video controls src="docs/assets/readme/tokyo-olympics-promo-with-audio.mp4" title="Title"></video>
+      Tokyo Olympics-style video,planned multi-shot compositions and storyboard packaging.
     </td>
     <td width="50%">
-      <a href="docs/assets/readme/stadium-crowd-story.mp4">
-        <img src="docs/assets/readme/smooth-crossfade-poster.jpg" alt="Sports crowd sequence video preview" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/stadium-crowd-story.mp4">Watch video</a> - Sports crowd sequence with dynamic camera changes and multi-shot fusion.</sub>
+    <video controls src="docs/assets/readme/stadium-crowd-story.mp4" title="Title"></video>
+    Sports crowd sequence with dynamic camera changes and multi-shot fusion.
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <a href="docs/assets/readme/comic-action-short.mp4">
-        <img src="docs/assets/readme/anime-fight-poster.jpg" alt="Comic-style action short video preview" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/comic-action-short.mp4">Watch video</a> - Comic-style action short with stylized motion, captions, and character-focused composition.</sub>
+      <video controls src="docs/assets/readme/comic-action-short.mp4" title="Title"></video>
+      Comic-style action short with stylized motion, captions, and character-focused composition.
     </td>
     <td width="50%">
-      <a href="docs/assets/readme/desert-car.mp4">
-        <img src="docs/assets/readme/desert.png" alt="Desert off-road vehicle short video preview" width="100%">
-      </a>
-      <br><sub><a href="docs/assets/readme/desert-car.mp4">Watch video</a> - Desert off-road vehicle short featuring a red vehicle and dramatic light.</sub>
+      <video controls src="docs/assets/readme/desert-car.mp4" title="Title"></video>
+      Desert off-road vehicle short featuring a red vehicle and dramatic light.
     </td>
   </tr>
 </table>
+
 
 ## Why UniVA Is Different
 

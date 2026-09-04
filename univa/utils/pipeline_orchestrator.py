@@ -11,8 +11,11 @@ from typing import Dict, List, Any, Optional, AsyncGenerator
 import time
 import logging
 import uuid
+import os
 
 from univa.utils.budget_tracker import BudgetTracker
+from univa.utils.pipeline_state_store import PipelineStateStore
+from univa.utils.artifact_store import ArtifactStore, content_sha256
 from univa.utils.skill_loader import SkillLoader
 
 logger = logging.getLogger(__name__)
@@ -23,11 +26,17 @@ class PipelineState:
     """Complete state of a pipeline execution."""
     pipeline_name: str
     session_id: str
+    owner_id: str = ""
+    project_id: str = ""
+    original_user_request: str = ""
     current_stage_index: int = 0
     status: str = "initialized"  # initialized → running → awaiting_human → completed → failed
 
     # Artifacts produced by each stage
     artifacts: Dict[str, Any] = field(default_factory=dict)
+    # Canonical envelopes keyed by artifact type. ``artifacts`` stays intact
+    # for compatibility with existing skills and clients.
+    artifact_records: Dict[str, Any] = field(default_factory=dict)
 
     # Budget tracking
     budget: Optional[BudgetTracker] = None
@@ -47,6 +56,9 @@ class PipelineState:
 
     # Continuation token for resume
     continuation_token: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    created_at: float = field(default_factory=time.time)
+    updated_at: float = field(default_factory=time.time)
+    expires_at: float = 0.0
 
     def start_stage(self, stage_name: str) -> None:
         """Mark the start of a stage for timing."""
@@ -61,6 +73,35 @@ class PipelineState:
             "duration_seconds": round(duration, 1),
         })
 
+    @classmethod
+    def from_persisted(cls, data: Dict[str, Any]) -> "PipelineState":
+        """Rehydrate a state without exposing its persisted token hash."""
+        state = cls(
+            pipeline_name=str(data.get("pipeline_name", "")),
+            session_id=str(data.get("session_id", "")),
+            owner_id=str(data.get("owner_id", "")),
+            project_id=str(data.get("project_id", "")),
+            original_user_request=str(data.get("original_user_request", "")),
+            current_stage_index=int(data.get("current_stage_index", 0)),
+            status=str(data.get("status", "initialized")),
+            artifacts=data.get("artifacts") or {},
+            artifact_records=data.get("artifact_records") or {},
+            budget=BudgetTracker.from_dict(data.get("budget")),
+            interaction_stage=data.get("interaction_stage"),
+            interaction_prompt=data.get("interaction_prompt"),
+            interaction_data=data.get("interaction_data"),
+            stage_timeline=data.get("stage_timeline") or [],
+            quality_reports=data.get("quality_reports") or {},
+            send_back_count=int(data.get("send_back_count", 0)),
+            # The raw token is intentionally not persisted. The store verifies
+            # the caller's token against its hash before resuming this state.
+            continuation_token="",
+            created_at=float(data.get("created_at", time.time())),
+            updated_at=float(data.get("updated_at", time.time())),
+            expires_at=float(data.get("expires_at", 0.0)),
+        )
+        return state
+
 
 class PipelineOrchestrator:
     """
@@ -74,9 +115,47 @@ class PipelineOrchestrator:
         # Continue until status == "completed"
     """
 
-    def __init__(self, skill_loader: SkillLoader):
+    def __init__(
+        self,
+        skill_loader: SkillLoader,
+        state_store: Optional[PipelineStateStore] = None,
+        artifact_store: Optional[ArtifactStore] = None,
+    ):
         self.skill_loader = skill_loader
         self._active_states: Dict[str, PipelineState] = {}
+        self.state_store = state_store or PipelineStateStore()
+        self.artifact_store = artifact_store or ArtifactStore()
+
+    def _persist_state(self, state: PipelineState) -> None:
+        """Keep the cache and durable state synchronized."""
+        try:
+            self.state_store.save(state)
+        except Exception:
+            # A transient persistence problem must not corrupt the in-memory
+            # execution. It is logged loudly so operators can repair storage.
+            logger.exception("Could not persist pipeline state %s", state.session_id)
+
+    def _load_state(self, session_id: str) -> Optional[PipelineState]:
+        record = self.state_store.load(session_id)
+        if not record:
+            return None
+        state = PipelineState.from_persisted(record)
+        self._active_states[session_id] = state
+        return state
+
+    def _pause_for_stage_approval(self, state: PipelineState, stage_name: str) -> None:
+        """Pause after a productive stage that declares human approval."""
+        state.status = "awaiting_human"
+        state.interaction_stage = f"approval:{stage_name}"
+        state.interaction_data = {
+            "type": "user_approval",
+            "stage": stage_name,
+            "review_summary": str(state.artifacts.get(stage_name, {}))[:3000],
+        }
+        state.interaction_prompt = (
+            f"Review the '{stage_name}' stage output. Enter 'confirm' to continue, "
+            "or describe revisions."
+        )
 
     # ── Public API ──────────────────────────────────────────────────────
 
@@ -87,6 +166,8 @@ class PipelineOrchestrator:
         plan_act_system,  # PlanActSystem instance
         session_id: Optional[str] = None,
         budget_limit_usd: float = 1.50,
+        owner_id: str = "",
+        project_id: str = "",
     ) -> PipelineState:
         """
         Start a new pipeline execution. Runs from the first stage to the first
@@ -101,6 +182,9 @@ class PipelineOrchestrator:
         state = PipelineState(
             pipeline_name=pipeline_name,
             session_id=session_id or str(uuid.uuid4()),
+            owner_id=owner_id or "",
+            project_id=project_id or "",
+            original_user_request=user_request,
             budget=BudgetTracker(
                 budget_limit_usd=budget_limit_usd,
                 model=plan_act_system.plan_agent.agent.model.id
@@ -116,6 +200,7 @@ class PipelineOrchestrator:
 
         state.status = "running"
         self._active_states[state.session_id] = state
+        self._persist_state(state)
 
         # Execute stages until an interactive gate or completion
         stages = pipeline_def.get('stages', [])
@@ -130,6 +215,7 @@ class PipelineOrchestrator:
                 state.interaction_data = self._build_interaction_data(stage_name, state)
                 state.interaction_prompt = self._build_interaction_prompt(stage_name, state)
                 state.status = "awaiting_human"
+                self._persist_state(state)
                 return state
 
             # Execute non-interactive stage
@@ -140,15 +226,22 @@ class PipelineOrchestrator:
                 )
                 state.artifacts[stage_name] = result
                 state.end_stage(stage_name, "completed")
+                self._persist_state(state)
                 logger.info(f"Stage '{stage_name}' completed successfully")
+                if stage_def.get('human_approval_default'):
+                    self._pause_for_stage_approval(state, stage_name)
+                    self._persist_state(state)
+                    return state
             except Exception as e:
                 logger.error(f"Stage '{stage_name}' failed: {e}")
                 state.end_stage(stage_name, "failed")
                 state.status = "failed"
+                self._persist_state(state)
                 return state
 
         # All stages completed without interaction (shouldn't happen for creative-proposal)
         state.status = "completed"
+        self._persist_state(state)
         return state
 
     async def resume(
@@ -156,28 +249,84 @@ class PipelineOrchestrator:
         user_input: str,
         plan_act_system,  # PlanActSystem instance
         session_id: str,
+        continuation_token: Optional[str] = None,
+        owner_id: Optional[str] = None,
     ) -> PipelineState:
         """
         Resume a pipeline from an interactive gate. Applies user input,
         then continues executing remaining stages to the next gate or completion.
         """
-        state = self._active_states.get(session_id)
+        if continuation_token is not None:
+            claimed = self.state_store.claim_resume(session_id, continuation_token, owner_id)
+            state = PipelineState.from_persisted(claimed)
+            # Keep the submitted token only until the decision is processed;
+            # every resulting checkpoint receives a newly generated token.
+            state.continuation_token = continuation_token
+            self._active_states[session_id] = state
+        else:
+            state = self._active_states.get(session_id) or self._load_state(session_id)
         if not state:
             raise ValueError(f"No active pipeline for session '{session_id}'")
 
-        if state.status != "awaiting_human":
+        if owner_id is not None and state.owner_id and state.owner_id != owner_id:
+            raise PermissionError(f"Pipeline session '{session_id}' does not belong to this user")
+
+        # Existing in-process callers historically omitted the token. Keep that
+        # API compatible, while all durable/API callers must provide it. A
+        # hydrated state has no raw token and therefore always requires one.
+        if continuation_token is None and not state.continuation_token:
+            raise PermissionError("A continuation token is required to resume this session")
+
+        if state.status not in {"awaiting_human", "resuming"}:
             raise ValueError(
                 f"Pipeline session '{session_id}' is not awaiting input "
                 f"(status: {state.status})"
             )
 
         stage_name = state.interaction_stage
+        approval_target = (
+            stage_name.split(":", 1)[1]
+            if isinstance(stage_name, str) and stage_name.startswith("approval:")
+            else None
+        )
         logger.info(f"Resuming pipeline '{state.pipeline_name}' at '{stage_name}'")
 
         # Process user input for the interaction stage
         state.start_stage(stage_name)
         try:
             processed = self._process_interaction(stage_name, user_input, state)
+            if stage_name == "pre_generation" and not processed.get("confirmed"):
+                state.artifacts["pre_generation_revision"] = processed
+                state.interaction_data = {
+                    **(state.interaction_data or {}),
+                    "revision_request": user_input,
+                }
+                state.continuation_token = uuid.uuid4().hex[:12]
+                state.status = "awaiting_human"
+                self._persist_state(state)
+                return state
+            if approval_target and not processed.get("confirmed"):
+                pipeline_def = self.skill_loader.load_pipeline(state.pipeline_name) or {}
+                stages = pipeline_def.get("stages", [])
+                target_def = (
+                    stages[state.current_stage_index]
+                    if 0 <= state.current_stage_index < len(stages)
+                    else None
+                )
+                if not target_def or target_def.get("name") != approval_target:
+                    raise RuntimeError(f"Approval target '{approval_target}' no longer matches the pipeline")
+                revised = await self._execute_stage(
+                    target_def,
+                    state,
+                    f"{state.original_user_request}\n\nRevision requested for '{approval_target}': {user_input}",
+                    plan_act_system,
+                )
+                state.artifacts[approval_target] = revised
+                state.artifacts[f"{approval_target}_revision_request"] = processed
+                self._pause_for_stage_approval(state, approval_target)
+                state.continuation_token = uuid.uuid4().hex[:12]
+                self._persist_state(state)
+                return state
             if stage_name == "confirm" and not processed.get("confirmed"):
                 pipeline_def = self.skill_loader.load_pipeline(state.pipeline_name) or {}
                 stages = pipeline_def.get("stages", [])
@@ -196,14 +345,67 @@ class PipelineOrchestrator:
                 state.interaction_data = self._build_interaction_data("confirm", state)
                 state.interaction_prompt = self._build_interaction_prompt("confirm", state)
                 state.continuation_token = uuid.uuid4().hex[:12]
+                self._persist_state(state)
                 return state
-            state.artifacts[stage_name] = processed
+            pipeline_def = self.skill_loader.load_pipeline(state.pipeline_name) or {}
+            stages = pipeline_def.get("stages", [])
+            interaction_def = (
+                stages[state.current_stage_index]
+                if 0 <= state.current_stage_index < len(stages)
+                else {}
+            )
+            if processed.get("confirmed") or stage_name == "selection":
+                approved_records = [
+                    {
+                        "artifact_id": record.get("artifact_id"),
+                        "artifact_type": record.get("artifact_type"),
+                        "version": record.get("version"),
+                        "content_sha256": record.get("content_sha256"),
+                    }
+                    for record in state.artifact_records.values()
+                    if isinstance(record, dict) and record.get("artifact_id")
+                ]
+                for produced_name in interaction_def.get("produces", []):
+                    processed[produced_name] = {
+                        "approved": bool(processed.get("confirmed", True)),
+                        "decision": processed,
+                        "approved_artifacts": approved_records,
+                        "approved_at": time.time(),
+                    }
+            decision_key = f"{approval_target}_approval" if approval_target else stage_name
+            state.artifacts[decision_key] = processed
+            if approval_target:
+                approval_record = self.artifact_store.write_artifact(
+                    decision_key,
+                    processed,
+                    project_id=state.project_id,
+                    job_id=state.session_id,
+                    parent_artifact_ids=[
+                        record.get("artifact_id")
+                        for record in state.artifact_records.values()
+                        if isinstance(record, dict) and record.get("artifact_id")
+                    ],
+                    status="approved",
+                    created_by="user",
+                    approved_by=state.owner_id or "user",
+                    provenance={"pipeline": state.pipeline_name, "stage": approval_target},
+                )
+                state.artifact_records[decision_key] = approval_record
+            self._record_stage_artifacts(
+                state, interaction_def, processed, user_input,
+                {"decision": "PASS", "stage": stage_name},
+            )
             state.end_stage(stage_name, "completed")
         except Exception as e:
             logger.error(f"Interaction stage '{stage_name}' failed: {e}")
             state.end_stage(stage_name, "failed")
             state.status = "failed"
+            self._persist_state(state)
             return state
+
+        # Consume the token before any subsequent stage can execute. A retry
+        # of the same approval therefore cannot duplicate paid work.
+        state.continuation_token = uuid.uuid4().hex[:12]
 
         # Clear interaction state
         state.interaction_stage = None
@@ -215,7 +417,15 @@ class PipelineOrchestrator:
         pipeline_def = self.skill_loader.load_pipeline(state.pipeline_name)
         stages = pipeline_def.get('stages', [])
 
-        for idx in range(state.current_stage_index + 1, len(stages)):
+        # A pre-generation gate is placed immediately before the expensive
+        # stage, so approval resumes that same index. Normal selection/confirm
+        # gates resume with the following stage.
+        first_stage_index = (
+            state.current_stage_index
+            if stage_name == "pre_generation"
+            else state.current_stage_index + 1
+        )
+        for idx in range(first_stage_index, len(stages)):
             stage_def = stages[idx]
             state.current_stage_index = idx
             next_stage_name = stage_def['name']
@@ -226,22 +436,33 @@ class PipelineOrchestrator:
                 state.interaction_data = self._build_interaction_data(next_stage_name, state)
                 state.interaction_prompt = self._build_interaction_prompt(next_stage_name, state)
                 state.status = "awaiting_human"
+                self._persist_state(state)
                 return state
 
             state.start_stage(next_stage_name)
             try:
                 result = await self._execute_stage(
-                    stage_def, state, user_input, plan_act_system
+                    stage_def,
+                    state,
+                    state.original_user_request or user_input,
+                    plan_act_system,
                 )
                 state.artifacts[next_stage_name] = result
                 state.end_stage(next_stage_name, "completed")
+                self._persist_state(state)
+                if stage_def.get('human_approval_default'):
+                    self._pause_for_stage_approval(state, next_stage_name)
+                    self._persist_state(state)
+                    return state
             except Exception as e:
                 logger.error(f"Stage '{next_stage_name}' failed: {e}")
                 state.end_stage(next_stage_name, "failed")
                 state.status = "failed"
+                self._persist_state(state)
                 return state
 
         state.status = "completed"
+        self._persist_state(state)
         logger.info(f"Pipeline '{state.pipeline_name}' completed")
         return state
 
@@ -274,10 +495,10 @@ class PipelineOrchestrator:
 
     def get_state(self, session_id: str) -> Optional[PipelineState]:
         """Get the current pipeline state for a session."""
-        return self._active_states.get(session_id)
+        return self._active_states.get(session_id) or self._load_state(session_id)
 
     def remove_state(self, session_id: str) -> None:
-        """Clean up pipeline state after completion."""
+        """Remove only the memory cache; durable history remains queryable."""
         self._active_states.pop(session_id, None)
 
     # ── Internal helpers ────────────────────────────────────────────────
@@ -297,6 +518,19 @@ class PipelineOrchestrator:
         """
         stage_name = stage_def['name']
         skill_path = stage_def.get('skill', '')
+
+        missing_inputs = [
+            artifact_name
+            for artifact_name in stage_def.get("required_artifacts_in", [])
+            if not any(
+                self._extract_artifact_payload(previous, artifact_name) is not None
+                for previous in state.artifacts.values()
+            )
+        ]
+        if missing_inputs:
+            raise RuntimeError(
+                f"Stage '{stage_name}' is missing required artifacts: {', '.join(missing_inputs)}"
+            )
 
         # Load stage director skill for context
         skill_content = ""
@@ -318,6 +552,7 @@ class PipelineOrchestrator:
         previous_act_budget = getattr(plan_act_system.act_agent, 'budget_tracker', None)
         attached_plan_budget = False
         attached_act_budget = False
+        stage_llm_start = len(state.budget.llm_calls) if state.budget else 0
         if state.budget and previous_plan_budget is None:
             plan_act_system.plan_agent.budget_tracker = state.budget
             attached_plan_budget = True
@@ -337,6 +572,9 @@ class PipelineOrchestrator:
         finally:
             if attached_plan_budget:
                 plan_act_system.plan_agent.budget_tracker = previous_plan_budget
+            if state.budget:
+                for call in state.budget.llm_calls[stage_llm_start:]:
+                    call.stage = stage_name
 
         # If no tool calls needed (proposal, storyboard stages), return plan as artifact
         if not stage_def.get('tools_available') and not stage_def.get('required_tools'):
@@ -353,6 +591,9 @@ class PipelineOrchestrator:
                 finally:
                     if attached_act_budget:
                         plan_act_system.act_agent.budget_tracker = previous_act_budget
+                    if state.budget:
+                        for call in state.budget.llm_calls[stage_llm_start:]:
+                            call.stage = stage_name
 
                 # Record tool usage from results
                 for step_idx, step_result in (results or {}).items():
@@ -368,10 +609,28 @@ class PipelineOrchestrator:
                             or 0.0
                         )
                         if state.budget:
+                            actual_cost = self._find_first_value(
+                                step_result, {"actual_cost_usd"}
+                            )
+                            if actual_cost is None:
+                                actual_cost = self._find_first_value(
+                                    step_result, {"cost_usd"}
+                                )
                             state.budget.record_tool_call(
                                 tool_name=tool_name,
                                 duration_seconds=float(planned_duration),
                                 stage=stage_name,
+                                actual_cost_usd=actual_cost,
+                                provider_task_id=self._find_first_value(
+                                    step_result,
+                                    {"provider_task_id", "task_id", "request_id"},
+                                ),
+                                provider=self._find_first_value(
+                                    step_result, {"provider"}
+                                ),
+                                model=self._find_first_value(
+                                    step_result, {"model"}
+                                ),
                             )
 
                 result = {
@@ -387,6 +646,10 @@ class PipelineOrchestrator:
         # ── Quality Gate (per quality-gate skill) ──
         qg_result = self._run_quality_gate(stage_def, state, result)
         state.quality_reports[stage_name] = qg_result
+        result = dict(result)
+        result["artifact_records"] = self._record_stage_artifacts(
+            state, stage_def, result, stage_request, qg_result
+        )
 
         if qg_result['decision'] == 'SEND_BACK':
             pipeline_def = self.skill_loader.load_pipeline(state.pipeline_name)
@@ -428,6 +691,159 @@ class PipelineOrchestrator:
 
         return result
 
+    def _record_stage_artifacts(
+        self,
+        state: PipelineState,
+        stage_def: Dict[str, Any],
+        stage_result: Dict[str, Any],
+        request: str = "",
+        quality_report: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Write canonical envelopes while preserving the legacy stage result."""
+        records: Dict[str, Any] = {}
+        stage_name = stage_def.get("name", "")
+        stage_cost = (
+            state.budget.stage_breakdown().get(stage_name, {})
+            if state.budget else {}
+        )
+        effective_stage_cost = (
+            stage_cost.get("llm_cost", 0.0) + stage_cost.get("tool_cost", 0.0)
+        )
+        parent_ids = [
+            record.get("artifact_id")
+            for record in state.artifact_records.values()
+            if isinstance(record, dict) and record.get("artifact_id")
+        ]
+        artifact_names = list(stage_def.get("produces", []))
+        artifact_names.extend(stage_def.get("optional_produces", []))
+        for alternatives in stage_def.get("produces_any", []):
+            artifact_names.extend(alternatives if isinstance(alternatives, list) else [alternatives])
+        for artifact_name in dict.fromkeys(artifact_names):
+            payload = self._extract_artifact_payload(stage_result, artifact_name)
+            if payload is None:
+                continue
+            record = self.artifact_store.write_artifact(
+                artifact_name,
+                payload,
+                project_id=state.project_id,
+                job_id=state.session_id,
+                parent_artifact_ids=parent_ids,
+                status=(
+                    "validated"
+                    if quality_report and quality_report.get("decision") == "PASS"
+                    else "draft"
+                ),
+                model=state.budget.model if state.budget else None,
+                cost_usd=effective_stage_cost,
+                provenance={"pipeline": state.pipeline_name, "stage": stage_def.get("name", "")},
+            )
+            state.artifact_records[artifact_name] = record
+            records[artifact_name] = record
+
+        if quality_report is not None:
+            quality_record = self.artifact_store.write_artifact(
+                f"{stage_def.get('name', 'stage')}_quality_report",
+                quality_report,
+                project_id=state.project_id,
+                job_id=state.session_id,
+                parent_artifact_ids=parent_ids,
+                status=(
+                    "validated"
+                    if quality_report.get("decision") in {"PASS", "PASS_WITH_WARNINGS"}
+                    else "blocked"
+                ),
+                model=state.budget.model if state.budget else None,
+                provenance={"pipeline": state.pipeline_name, "stage": stage_def.get("name", "")},
+            )
+            state.artifact_records[f"{stage_def.get('name', 'stage')}_quality_report"] = quality_record
+            records["quality_report"] = quality_record
+            receipt = self.artifact_store.write_receipt({
+                "job_id": state.session_id,
+                "stage": stage_def.get("name", ""),
+                "tool_name": "stage_execution",
+                "input_sha256": content_sha256(request),
+                "approved_plan_sha256": content_sha256(state.artifacts.get("confirm", {})),
+                "status": quality_report.get("decision", "unknown").lower(),
+                "estimated_cost_usd": effective_stage_cost,
+                "llm_cost_usd": stage_cost.get("llm_cost", 0.0),
+                "tool_cost_usd": stage_cost.get("tool_cost", 0.0),
+                "actual_tool_cost_usd": stage_cost.get("tool_actual_cost", 0.0),
+                "fallback_estimated_tool_cost_usd": stage_cost.get(
+                    "tool_fallback_estimated_cost", 0.0
+                ),
+                "output_paths": list(self._collect_output_paths(stage_result)),
+            })
+            records["execution_receipt"] = receipt
+            tool_receipts = []
+            plan = stage_result.get("plan") if isinstance(stage_result, dict) else None
+            execution_results = stage_result.get("execution_results") if isinstance(stage_result, dict) else None
+            steps = (
+                plan.get("execution_plan", {}).get("steps", [])
+                if isinstance(plan, dict) else []
+            )
+            if isinstance(execution_results, dict):
+                for index, step in enumerate(steps, start=1):
+                    tool = step.get("tool", {}) if isinstance(step, dict) else {}
+                    tool_name = tool.get("name") or "unknown"
+                    step_result = execution_results.get(index, execution_results.get(str(index), {}))
+                    tool_receipts.append(self.artifact_store.write_receipt({
+                        "job_id": state.session_id,
+                        "stage": stage_def.get("name", ""),
+                        "tool_name": tool_name,
+                        "input": tool.get("arguments", {}),
+                        "approved_plan_sha256": content_sha256(state.artifacts.get("confirm", {})),
+                        "provider_task_id": self._find_first_value(
+                            step_result, {"provider_task_id", "task_id", "request_id"}
+                        ),
+                        "provider": self._find_first_value(step_result, {"provider"}),
+                        "model": self._find_first_value(step_result, {"model"}),
+                        "status": "success" if self._result_succeeded(step_result) else "failed",
+                        "actual_cost_usd": self._find_first_value(
+                            step_result, {"actual_cost_usd", "cost_usd"}
+                        ),
+                        "output_paths": list(self._collect_output_paths(step_result)),
+                    }))
+            if tool_receipts:
+                records["tool_execution_receipts"] = tool_receipts
+        return records
+
+    @staticmethod
+    def _collect_output_paths(value: Any):
+        if isinstance(value, str) and os.path.isfile(value):
+            yield value
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from PipelineOrchestrator._collect_output_paths(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from PipelineOrchestrator._collect_output_paths(item)
+
+    @staticmethod
+    def _find_first_value(value: Any, keys: set[str]):
+        if isinstance(value, dict):
+            for key in keys:
+                if value.get(key) is not None:
+                    return value[key]
+            for item in value.values():
+                found = PipelineOrchestrator._find_first_value(item, keys)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for item in value:
+                found = PipelineOrchestrator._find_first_value(item, keys)
+                if found is not None:
+                    return found
+        return None
+
+    @staticmethod
+    def _result_succeeded(value: Any) -> bool:
+        if isinstance(value, dict):
+            if "success" in value:
+                return bool(value["success"])
+            if value.get("error"):
+                return False
+        return value is not None
+
     @staticmethod
     def _extract_artifact_payload(stage_result: Dict, artifact_name: str):
         """Return the structured payload for an artifact, if present."""
@@ -451,7 +867,7 @@ class PipelineOrchestrator:
                     return result[artifact_name]
 
         # Do not validate wrapper dicts like {'plan': ..., 'stage': ...} as artifacts.
-        wrapper_keys = {'plan', 'stage', 'execution_results'}
+        wrapper_keys = {'plan', 'stage', 'execution_results', 'artifact_records'}
         if set(stage_result).issubset(wrapper_keys):
             return None
         return stage_result
@@ -474,6 +890,8 @@ class PipelineOrchestrator:
         import os as _os
         stage_name = stage_def['name']
         produces = stage_def.get('produces', [])
+        optional_produces = stage_def.get('optional_produces', [])
+        produces_any = stage_def.get('produces_any', [])
         review_focus = stage_def.get('review_focus', [])
         success_criteria = stage_def.get('success_criteria', [])
 
@@ -486,11 +904,12 @@ class PipelineOrchestrator:
             try:
                 artifact_data = self._extract_artifact_payload(stage_result, artifact_name)
                 if artifact_data is None:
+                    total += 1
                     checks.append({
                         'type': 'schema_validate',
                         'target': artifact_name,
-                        'status': 'SKIP',
-                        'detail': f"No structured payload found for '{artifact_name}'",
+                        'status': 'FAIL',
+                        'detail': f"Required produced artifact '{artifact_name}' is missing",
                     })
                     continue
 
@@ -514,16 +933,67 @@ class PipelineOrchestrator:
                         'detail': f"Schema validation failed: {schema_result['errors'][:3]}",
                     })
             except Exception as e:
+                total += 1
                 checks.append({
                     'type': 'schema_validate',
                     'target': artifact_name,
-                    'status': 'SKIP',
-                    'detail': f"Could not validate: {e}",
+                    'status': 'FAIL',
+                    'detail': f"Could not validate required artifact: {e}",
+                })
+
+        # Optional outputs are validated only when present. ``produces_any``
+        # expresses alternatives such as media_plan OR edit_proposal.
+        for artifact_name in optional_produces:
+            artifact_data = self._extract_artifact_payload(stage_result, artifact_name)
+            if artifact_data is None:
+                continue
+            total += 1
+            schema_result = self.skill_loader.validate_artifact_against_schema(
+                artifact_name, artifact_data
+            )
+            status = 'PASS' if schema_result['valid'] else 'FAIL'
+            passed += int(status == 'PASS')
+            checks.append({
+                'type': 'schema_validate',
+                'target': artifact_name,
+                'status': status,
+                'detail': (
+                    f"Optional artifact '{artifact_name}' conforms to schema"
+                    if status == 'PASS'
+                    else f"Schema validation failed: {schema_result['errors'][:3]}"
+                ),
+            })
+
+        for alternatives in produces_any:
+            names = alternatives if isinstance(alternatives, list) else [alternatives]
+            present = [
+                name for name in names
+                if self._extract_artifact_payload(stage_result, name) is not None
+            ]
+            total += 1
+            if present:
+                passed += 1
+                checks.append({
+                    'type': 'artifact_alternative',
+                    'target': names,
+                    'status': 'PASS',
+                    'detail': f"Alternative output present: {', '.join(present)}",
+                })
+            else:
+                checks.append({
+                    'type': 'artifact_alternative',
+                    'target': names,
+                    'status': 'FAIL',
+                    'detail': f"At least one output is required: {', '.join(names)}",
                 })
 
         # ── Check 2: File existence for generation stages ──
         stage_tools = set(stage_def.get("required_tools") or []) | set(stage_def.get("tools_available") or [])
-        read_only_or_planning_tools = {"vision2text_gen", "video_referring_segmentation", "plan_audio_for_video"}
+        read_only_or_planning_tools = {
+            "vision2text_gen", "video_referring_segmentation", "plan_audio_for_video",
+            "index_video_media", "search_video_moments", "get_video_moment",
+            "transcribe_media", "translate_captions", "validate_localized_media",
+        }
         media_output_tools = stage_tools - read_only_or_planning_tools
         if media_output_tools:
             total += 1
@@ -597,7 +1067,11 @@ class PipelineOrchestrator:
         failures = [c for c in checks if c['status'] == 'FAIL']
         warnings = [c for c in checks if c['status'] == 'WARN']
 
-        if quality_score >= 1.0:
+        # A missing or invalid declared output is a contract violation. It
+        # must block the stage even if another non-critical check passed.
+        if any(c['type'] in {'schema_validate', 'artifact_alternative'} and c['status'] == 'FAIL' for c in failures):
+            decision = 'BLOCKED'
+        elif quality_score >= 1.0:
             decision = 'PASS'
         elif quality_score >= 0.6:
             decision = 'PASS_WITH_WARNINGS'
@@ -734,6 +1208,23 @@ class PipelineOrchestrator:
                 for kw in ["confirm", "ok", "yes", "go ahead", "approve", "approved", "continue"]
             )
             result["confirmed"] = confirmed
+            result["adjustments"] = user_input if not confirmed else ""
+
+        elif stage_name == "pre_generation":
+            confirmed = any(
+                kw in user_input.lower()
+                for kw in ["/go", "go ahead", "confirm", "approve", "approved", "continue", "yes"]
+            )
+            result["confirmed"] = confirmed
+            result["adjustments"] = user_input if not confirmed else ""
+
+        elif stage_name.startswith("approval:"):
+            confirmed = any(
+                kw in user_input.lower()
+                for kw in ["confirm", "ok", "yes", "go ahead", "approve", "approved", "continue"]
+            )
+            result["confirmed"] = confirmed
+            result["approved_stage"] = stage_name.split(":", 1)[1]
             result["adjustments"] = user_input if not confirmed else ""
 
         return result

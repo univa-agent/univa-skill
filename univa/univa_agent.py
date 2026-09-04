@@ -29,6 +29,7 @@ from univa.utils.skill_loader import get_skill_loader, SkillLoader
 from univa.utils.output_formatter import OutputFormatter
 from univa.utils.budget_tracker import BudgetTracker
 from univa.utils.pipeline_orchestrator import PipelineOrchestrator, PipelineState
+from univa.utils.pipeline_state_store import PipelineStateStore
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -1251,12 +1252,22 @@ class ActAgent:
             'repainting': 'core/video-editing',
             'pose_reference': 'core/video-editing',
             'vision2text_gen': 'core/video-understanding',
+            'index_video_media': 'core/media-index',
+            'update_video_index_segments': 'core/media-index',
+            'search_video_moments': 'core/media-index',
+            'get_video_moment': 'core/media-index',
             'video_referring_segmentation': 'core/video-tracking',
             'audio_gen': 'core/audio-gen',
             'speech_gen': 'core/audio-gen',
             'plan_audio_for_video': 'core/audio-gen',
             'generate_audio_assets_from_plan': 'core/audio-gen',
             'mux_audio_timeline': 'core/audio-gen',
+            'transcribe_media': 'core/localization',
+            'translate_captions': 'core/localization',
+            'prepare_localized_captions': 'core/localization',
+            'generate_localized_voiceover': 'core/localization',
+            'render_localized_video': 'core/localization',
+            'validate_localized_media': 'core/localization',
             'merge2videos': 'core/ffmpeg-merge',
         }
 
@@ -1707,6 +1718,9 @@ class PlanActSystem:
         # Pipeline orchestration
         self._pipeline_orchestrator: Optional[PipelineOrchestrator] = None
         self._active_budget_tracker: Optional[BudgetTracker] = None
+        self._pipeline_state_db = str(
+            Path(project_root) / "data" / ".univa" / "pipeline_state.db"
+        )
 
     async def __aenter__(self):
         """asynchronous context manager enter"""
@@ -1714,7 +1728,10 @@ class PlanActSystem:
 
         self.plan_agent = PlanAgent(self.mcp_tools, self._plan_db, self.skill_loader)
         self.act_agent = ActAgent(self.mcp_tools, skill_loader=self.skill_loader)
-        self._pipeline_orchestrator = PipelineOrchestrator(self.skill_loader)
+        self._pipeline_orchestrator = PipelineOrchestrator(
+            self.skill_loader,
+            state_store=PipelineStateStore(self._pipeline_state_db),
+        )
 
         return self
 
@@ -1922,6 +1939,7 @@ class PlanActSystem:
         user_request: str,
         is_frontend: bool = False,
         project_context: Optional[Dict[str, Any]] = None,
+        owner_id: str = "",
     ):
         """
         Stream task execution with SSE events.
@@ -2099,6 +2117,13 @@ class PlanActSystem:
                 ]
             ):
                 pipeline_name = "media-atomic"
+            localization_markers = [
+                "localization", "localize", "transcribe", "asr",
+                "subtitle translation", "bilingual subtitle", "dub", "dubbing",
+                "本地化", "字幕翻译", "双语字幕", "转写", "配音",
+            ]
+            if any(marker in user_request.lower() for marker in localization_markers):
+                pipeline_name = "localization"
             # Auto-route: if no pipeline explicitly set, classify intent
             decomposition_injected = False
             if not pipeline_name:
@@ -2185,7 +2210,15 @@ class PlanActSystem:
             # ── Interactive Pipeline Mode (any manifest with a human approval gate) ─────────────────
             if pipeline_name and has_human_gate and self._pipeline_orchestrator:
                 async for event in self._execute_interactive_pipeline(
-                    session_id, user_request, pipeline_name
+                    session_id,
+                    user_request,
+                    pipeline_name,
+                    owner_id=owner_id,
+                    project_id=(
+                        (project_context or {}).get("project_id")
+                        or (project_context or {}).get("safe_project_name")
+                        or ""
+                    ),
                 ):
                     yield event
                 return
@@ -2332,7 +2365,12 @@ class PlanActSystem:
         return '\n'.join(lines)
 
     async def _execute_interactive_pipeline(
-        self, session_id: str, user_request: str, pipeline_name: str
+        self,
+        session_id: str,
+        user_request: str,
+        pipeline_name: str,
+        owner_id: str = "",
+        project_id: str = "",
     ):
         """
         Execute an interactive pipeline with pause/resume
@@ -2365,6 +2403,9 @@ class PlanActSystem:
         pipeline_state = PipelineState(
             pipeline_name=pipeline_name,
             session_id=session_id,
+            owner_id=owner_id or "",
+            project_id=project_id or "",
+            original_user_request=user_request,
             budget=budget,
         )
 
@@ -2377,6 +2418,26 @@ class PlanActSystem:
                 prev_artifacts_summary = {
                     k: str(v)[:200] for k, v in pipeline_state.artifacts.items()
                 }
+                pipeline_state.status = "awaiting_human"
+                pipeline_state.interaction_stage = "pre_generation"
+                pipeline_state.interaction_data = {
+                    "type": "user_approval",
+                    "stage": "pre_generation",
+                    "estimated_cost": f"${budget.budget_limit_usd * 0.4:.2f} - ${budget.budget_limit_usd * 0.7:.2f}",
+                    "artifacts_so_far": prev_artifacts_summary,
+                }
+                pipeline_state.interaction_prompt = (
+                    "Ready to start asset generation. Enter /go to continue, "
+                    "or provide revision notes."
+                )
+                # Persist before yielding. A disconnected client must not lose
+                # the approval checkpoint.
+                if self._pipeline_orchestrator:
+                    self._pipeline_orchestrator._active_states[session_id] = pipeline_state
+                    self._pipeline_orchestrator._persist_state(pipeline_state)
+                self.plan_agent.budget_tracker = None
+                self.act_agent.budget_tracker = None
+                self._active_budget_tracker = None
                 yield {
                     'type': 'pre_generation_gate',
                     'stage': stage_name,
@@ -2394,12 +2455,26 @@ class PlanActSystem:
                     ),
                     'available_commands': ['/go', '/pause', '/modify N <revision>', '/status'],
                 }
+                return
 
             # Check for interactive gate (following help-to-make-user protocol)
             if stage_def.get('human_approval_default') and stage_name in ('selection', 'confirm'):
                 logger.info(f"[Pipeline] Suspending at interactive gate: {stage_name}")
                 pipeline_state.status = "awaiting_human"
                 pipeline_state.interaction_stage = stage_name
+                pipeline_state.interaction_data = self._pipeline_orchestrator._build_interaction_data(
+                    stage_name, pipeline_state
+                )
+                pipeline_state.interaction_prompt = self._pipeline_orchestrator._build_interaction_prompt(
+                    stage_name, pipeline_state
+                )
+                # Persist before yielding: generator cleanup after a client
+                # disconnect must not discard the checkpoint.
+                self._pipeline_orchestrator._active_states[session_id] = pipeline_state
+                self._pipeline_orchestrator._persist_state(pipeline_state)
+                self.plan_agent.budget_tracker = None
+                self.act_agent.budget_tracker = None
+                self._active_budget_tracker = None
 
                 # Build structured interaction data per help-to-make-user protocol
                 if stage_name == 'selection':
@@ -2454,8 +2529,6 @@ class PlanActSystem:
                         'available_commands': ['/status', '/abort', '/modify N <revision>'],
                     }
 
-                # Store state for resume
-                self._pipeline_orchestrator._active_states[session_id] = pipeline_state
                 return
 
             # Execute non-interactive stage
@@ -2477,6 +2550,12 @@ class PlanActSystem:
                 # Store artifact
                 pipeline_state.artifacts[stage_name] = stage_result
                 pipeline_state.end_stage(stage_name, "completed")
+                post_stage_approval = bool(stage_def.get('human_approval_default'))
+                if post_stage_approval:
+                    self._pipeline_orchestrator._pause_for_stage_approval(
+                        pipeline_state, stage_name
+                    )
+                self._pipeline_orchestrator._persist_state(pipeline_state)
 
                 yield output_fmt.format_stream_event('pipeline_stage_complete', {
                     'stage': stage_name,
@@ -2491,14 +2570,36 @@ class PlanActSystem:
                         'budget': budget.summary(),
                     }
 
+                if post_stage_approval:
+                    self.plan_agent.budget_tracker = None
+                    self.act_agent.budget_tracker = None
+                    self._active_budget_tracker = None
+                    yield {
+                        'type': 'pipeline_suspended',
+                        'stage': stage_name,
+                        'continuation_token': pipeline_state.continuation_token,
+                        'interaction_type': 'user_approval',
+                        'data': pipeline_state.interaction_data,
+                        'prompt': pipeline_state.interaction_prompt,
+                        'available_commands': ['/status', '/abort', '/modify N <revision>'],
+                    }
+                    return
+
             except Exception as e:
                 logger.error(f"[Pipeline] Stage '{stage_name}' failed: {e}")
                 pipeline_state.end_stage(stage_name, "failed")
+                pipeline_state.status = "failed"
+                self._pipeline_orchestrator._persist_state(pipeline_state)
+                self.plan_agent.budget_tracker = None
+                self.act_agent.budget_tracker = None
+                self._active_budget_tracker = None
                 yield output_fmt.format_stream_event('error', f"Stage '{stage_name}' failed: {str(e)}")
                 return
 
         # All stages completed
         pipeline_state.status = "completed"
+        if self._pipeline_orchestrator:
+            self._pipeline_orchestrator._persist_state(pipeline_state)
 
         # Build delivery report from budget tracker
         delivery_report = {

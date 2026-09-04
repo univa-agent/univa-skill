@@ -8,6 +8,12 @@ Use this skill when UniVA creates, presents, and resumes human checkpoints.
 
 Checkpoints must include state, prompt/question, choices, current artifact paths, and resume instructions. `awaiting_human` means stop execution until explicit input arrives.
 
+For backend workflows, the checkpoint is durable. Preserve the returned
+`session_id` and `continuation_token`; submit both through `/chat/resume` or
+`scripts/univa_agent_client.py resume`. The continuation token is single-use,
+rotates after each decision, and must never be written to logs or Artifact
+content. Owner/access-code context must remain the same when resuming.
+
 ## Invariants
 
 - All user-facing output must be English.
@@ -24,6 +30,8 @@ Checkpoints must include state, prompt/question, choices, current artifact paths
 4. For gated work, write validation/review artifacts and stop at `awaiting_human`.
 5. Resume only with explicit approval or user input that matches the current checkpoint.
 6. Format final output in concise English with artifact paths and failure details when relevant.
+7. On `409`, inspect current state before retrying; do not blindly repeat a
+   resume request that may trigger a paid stage.
 
 ## Common Pitfalls
 

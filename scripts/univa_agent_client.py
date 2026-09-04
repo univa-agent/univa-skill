@@ -119,9 +119,12 @@ def cmd_chat(args: argparse.Namespace) -> None:
             continue
         event_type = event.get("type", "event")
         content = event.get("content") or event.get("message") or event.get("stage") or ""
-        if event_type in {"content", "error", "pipeline_suspended", "pipeline_complete", "finish"}:
+        if event_type in {
+            "content", "error", "pre_generation_gate", "pipeline_suspended",
+            "pipeline_complete", "finish",
+        }:
             print(f"[{event_type}] {content}")
-            if event_type == "pipeline_suspended":
+            if event_type in {"pre_generation_gate", "pipeline_suspended"}:
                 _print_json(event)
         elif args.verbose:
             _print_json(event)
@@ -189,7 +192,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("resume")
     p.add_argument("--session-id", required=True)
     p.add_argument("--user-input", required=True)
-    p.add_argument("--continuation-token", default="")
+    p.add_argument("--continuation-token", required=True)
     p.add_argument("--timeout", type=int, default=900)
     p.set_defaults(func=cmd_resume)
 

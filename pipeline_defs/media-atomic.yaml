@@ -49,10 +49,10 @@ stages:
       - research_brief
       - source_analysis
     produces:
-      - media_plan
-      - edit_proposal
       - media_plan_validation
       - media_plan_review
+    produces_any:
+      - [media_plan, edit_proposal]
     tools_available: []
     checkpoint_required: true
     human_approval_default: false

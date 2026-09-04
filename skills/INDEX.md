@@ -15,7 +15,7 @@ Layer 2: Governance and Creative Constraint Skills
   skills/themes/*
   Theme-specific generation quality enhancers. When a task matches product advertising, comics, Chinese ink/guochao, sci-fi anime, or other themes, these skills add themed prompt, visual, storyboard, content, scene, and audio guidance. They do not change safety review, approval, permissions, tool contracts, or explicit user instructions.
   skills/meta/*
-  Provide planning/acting protocols, pipeline loading, review, checkpoints, quality gates, media review, clarification, output formatting, user help, preference management, skill creation, and frontend-editor behavior.
+  Provide planning/acting protocols, pipeline loading, review, checkpoints, quality gates, media review, Artifact provenance/cost/receipts, clarification, output formatting, user help, preference management, skill creation, and frontend-editor behavior.
 
 Layer 3: Task-Driven Collaboration Skills
   skills/pipelines/**/*
@@ -35,9 +35,10 @@ External Agent Integration:
 | `video_generation` | `video_gen` | `text2video_gen`, `image2video_gen`, `frame2frame_video_gen`, `video_extension`, `storyvideo_gen`, `entity2video`, `merge2videos`, `remotion_compose_video` |
 | `image_generation` | `image_gen` | `text2image_generate`, `image2image_generate`, `sequential_image_gen` |
 | `video_editing` | `video_editing` | `depth_modify`, `style_transfer`, `repainting`, `pose_reference` |
-| `video_understanding` | `video_understanding` | `vision2text_gen` |
+| `video_understanding` | `video_understanding` | `vision2text_gen`, durable indexing, and time-coded moment search |
 | `video_tracking` | `video_tracking` | `video_referring_segmentation` |
 | `audio_generation` | `audio_gen` | `audio_gen`, `speech_gen` |
+| `localization` | `localization` | ASR, caption translation, bilingual subtitle preparation, localized voiceover, rendering, and locale QA |
 
 Default video delivery includes non-voice audio such as BGM, ambience, SFX, and transitions. Voiceover, dubbing, speech, or character dialogue is generated only when the user explicitly asks for voice content. When video audio is requested or enabled, use this priority order: preserve audio returned by the video generation API first, use the dedicated audio generation API second, and use local FFmpeg synthetic audio fallback only when the generated video has no audio stream and no dedicated audio API path succeeds. Remotion is an approved final packaging layer for captions, title cards, lower thirds, CTA, brand marks, progress bars, and data cards.
 
@@ -55,6 +56,8 @@ Use `python scripts/export_mcp_tool_contracts.py` to export current MCP signatur
 | `plan_audio_for_video`, `audio_gen`, `speech_gen`, `generate_audio_assets_from_plan`, `mux_audio_timeline` | `skills/core/audio-gen.md` |
 | `depth_modify`, `style_transfer`, `repainting`, `pose_reference` | `skills/core/video-editing.md` |
 | `vision2text_gen` | `skills/core/video-understanding.md` |
+| `index_video_media`, `update_video_index_segments`, `search_video_moments`, `get_video_moment` | `skills/core/media-index.md` |
+| `transcribe_media`, `translate_captions`, `prepare_localized_captions`, `generate_localized_voiceover`, `render_localized_video`, `validate_localized_media` | `skills/core/localization.md` |
 | `video_referring_segmentation` | `skills/core/video-tracking.md` |
 
 ## Core Skills
@@ -68,6 +71,7 @@ Use `python scripts/export_mcp_tool_contracts.py` to export current MCP signatur
 | Video Understanding | `core/video-understanding.md` | `vision2text_gen` analysis |
 | Video Tracking | `core/video-tracking.md` | Referring segmentation |
 | Audio Gen | `core/audio-gen.md` | Audio, speech, audio planning, asset generation, and muxing |
+| Localization | `core/localization.md` | ASR, timed captions, translation, bilingual captions, localized TTS/render, and locale QA |
 | FFmpeg Merge | `core/ffmpeg-merge.md` | Merge, per-edge transitions, crossfade, and final audio handling |
 | Remotion Compose | `core/remotion-compose.md` | Approved final packaging layer |
 | Prompt Validator | `core/prompt-validator.md` | Required validation before generation calls |
@@ -77,6 +81,11 @@ Use `python scripts/export_mcp_tool_contracts.py` to export current MCP signatur
 Creative skills define briefs, copy, styleframes, energy arcs, shot planning, material mapping, durations, timeline/audio/caption plans, Remotion packaging, story video structure, editing strategy, analysis, breakdown, generation, and quality checks.
 
 Meta skills define chat/work routing, output judging, plan/act behavior, pipeline loading, review, quality gates, checkpoints, clarification, help/pause flows, media review, user preference creation/management, output formatting, frontend editor behavior, and skill creation.
+
+`meta/artifact-provenance.md` defines when external agents should rely on the
+durable backend stores versus direct runners, and how Artifact versions,
+approval hashes, provider costs, append-only receipts, and delivery links are
+recorded without editing SQLite directly.
 
 Theme skills are generation quality enhancers loaded by `SkillLoader.find_theme_skills_for_task()` from front matter triggers. They may enrich prompts and planning, but they must never change intent type, pipeline choice, media review, human checkpoints, permissions, tool contracts, explicit instructions, or approved handoff content.
 

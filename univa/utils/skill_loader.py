@@ -254,15 +254,29 @@ class SkillLoader:
         # material constraints must be available together.
         loaded = 0
         max_loaded = 14
+        layer2_meta_skills = {"meta/artifact-provenance"}
         for skill_path in relevant:
             if loaded >= max_loaded:
                 break
-            if skill_path.startswith("meta/") or skill_path.startswith("pipelines/"):
+            if skill_path.startswith("pipelines/"):
+                continue
+            if skill_path.startswith("meta/") and skill_path not in layer2_meta_skills:
                 continue
             try:
                 content = self.load_skill(skill_path)
                 parts.append(f"### {skill_path}")
-                for header in ["## When to Use", "## Process", "## Generation Detail Expansion", "## Common Pitfalls"]:
+                for header in [
+                    "## When to Use",
+                    "## Tool Contracts",
+                    "## Required Behavior",
+                    "## External Agent Execution",
+                    "## Storage Modes",
+                    "## Approval Binding",
+                    "## Cost Rules",
+                    "## Process",
+                    "## Generation Detail Expansion",
+                    "## Common Pitfalls",
+                ]:
                     idx = content.find(header)
                     if idx >= 0:
                         next_idx = content.find("\n## ", idx + len(header))
@@ -295,9 +309,32 @@ class SkillLoader:
         task_lower = task_description.lower()
         matched = []
 
+        localization_kw = [
+            "asr", "transcribe", "transcription", "speech recognition",
+            "subtitle translation", "bilingual subtitle", "localization",
+            "localize", "dub", "dubbing", "srt", "vtt",
+            "字幕翻译", "双语字幕", "本地化", "转写", "语音识别",
+            "识别语音", "生成字幕", "配音",
+        ]
+        localization_requested = any(kw in task_lower for kw in localization_kw)
+
         # Video generation keywords
-        video_gen_kw = ['generate', 'video', 'video', 'generate', 'create', 'gen', 'create', 'create']
-        if any(kw in task_lower for kw in video_gen_kw):
+        video_generation_patterns = [
+            r"\b(?:generate|create|make|produce)\b.{0,40}\b(?:video|clip|film)\b",
+            r"(?:生成|制作|创建).{0,24}(?:视频|短片|宣传片|影片)",
+        ]
+        video_generation_requested = any(
+            re.search(pattern, task_lower) for pattern in video_generation_patterns
+        )
+        # "Generate SRT from this video" creates a sidecar, not a new video.
+        localization_sidecar_only = localization_requested and any(
+            marker in task_lower
+            for marker in ["srt", "vtt", "transcript", "transcription", "转写", "语音识别"]
+        ) and not any(
+            marker in task_lower
+            for marker in ["new video", "localized video", "render video", "新视频", "本地化视频", "渲染视频"]
+        )
+        if video_generation_requested and not localization_sidecar_only:
             matched.extend([
                 'meta/media-review-gate',
                 'meta/generate-pipeline',
@@ -316,7 +353,10 @@ class SkillLoader:
             ])
 
         # Image generation keywords
-        image_kw = ['image', 'image', 'image', 'photo', 'picture', 'photo']
+        image_kw = [
+            'image', 'photo', 'picture', 'poster',
+            '图片', '图像', '照片', '海报',
+        ]
         if any(kw in task_lower for kw in image_kw):
             matched.extend([
                 'meta/media-review-gate',
@@ -328,7 +368,10 @@ class SkillLoader:
             ])
 
         # Audio and speech generation keywords
-        audio_kw = ["audio", "music", "sfx", "dubbing", "voiceover", "speech", "audio", "music", "sound", "speech", "voiceover", "tts"]
+        audio_kw = [
+            "audio", "music", "sfx", "dubbing", "voiceover", "speech",
+            "sound", "tts", "音频", "音乐", "音效", "声音", "旁白", "配音",
+        ]
         if any(kw in task_lower for kw in audio_kw):
             matched.extend([
                 "meta/media-review-gate",
@@ -336,6 +379,54 @@ class SkillLoader:
                 "creative/creative-brief",
                 "core/audio-gen",
             ])
+
+        if localization_requested:
+            matched.extend([
+                "meta/media-review-gate",
+                "meta/edit-pipeline",
+                "core/localization",
+                "core/audio-gen",
+                "core/remotion-compose",
+                "pipelines/localization/executive-producer",
+            ])
+
+        # Durable local video indexing and exact time-coded lookup
+        media_index_kw = [
+            "video index", "index video", "time-coded", "timecoded",
+            "moment search", "scene search", "find the moment", "find the scene",
+            "视频索引", "检索视频", "视频检索", "片段检索", "时间码",
+            "时间段", "定位镜头", "查找片段", "查找镜头",
+        ]
+        if any(kw in task_lower for kw in media_index_kw):
+            matched.extend([
+                "meta/understand-pipeline",
+                "core/media-index",
+                "core/video-understanding",
+                "creative/video-analysis",
+            ])
+
+        # Durable backend checkpoint/resume requests
+        checkpoint_kw = [
+            "resume pipeline", "resume task", "continuation token", "checkpoint",
+            "pause and resume", "恢复任务", "恢复上次", "暂停的任务",
+            "继续任务", "继续执行", "断点续跑", "审批状态", "续跑令牌",
+            "恢复流水线",
+        ]
+        if any(kw in task_lower for kw in checkpoint_kw):
+            matched.extend([
+                "meta/checkpoint-protocol",
+                "meta/pause-forhelp",
+                "meta/artifact-provenance",
+            ])
+
+        # Canonical Artifact, cost, receipt, and provenance requests
+        provenance_kw = [
+            "artifact version", "artifact hash", "provenance", "execution receipt",
+            "cost receipt", "provider cost", "产物版本", "产物哈希", "来源记录",
+            "执行回执", "成本记录", "供应商成本",
+        ]
+        if any(kw in task_lower for kw in provenance_kw):
+            matched.append("meta/artifact-provenance")
 
         # Video editing keywords
         edit_kw = ['edit', 'modify', 'replace', 'edit', 'modify', 'style', 'style', 'depth', 'background']
@@ -383,7 +474,10 @@ class SkillLoader:
             ])
 
         # Analysis keywords
-        analysis_kw = ['analyze', 'understand', 'analyze', 'understand', 'describe', 'describe']
+        analysis_kw = [
+            'analyze', 'understand', 'describe', 'inspect',
+            '分析', '理解', '描述', '检查视频',
+        ]
         if any(kw in task_lower for kw in analysis_kw):
             matched.extend([
                 'core/video-understanding',
@@ -439,6 +533,13 @@ class SkillLoader:
             parts.append(checkpoint)
         except FileNotFoundError:
             logger.debug("checkpoint-protocol.md not available at Layer 3")
+
+        try:
+            provenance = self.load_skill("meta/artifact-provenance")
+            parts.append("\n### Artifact Provenance Protocol")
+            parts.append(provenance)
+        except FileNotFoundError:
+            logger.debug("artifact-provenance.md not available at Layer 3")
 
         return '\n\n'.join(parts)
 

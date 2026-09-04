@@ -1,0 +1,137 @@
+name: localization
+version: "1.0"
+description: >
+  Reviewed ASR, translation, bilingual caption, voiceover, render, and locale
+  QA pipeline built on UniVA's existing speech, audio timeline, and Remotion tools.
+category: localization
+stability: beta
+
+default_checkpoint_policy: strict
+
+orchestration:
+  mode: executive-producer
+  skill: pipelines/localization/executive-producer
+  budget_default_usd: 0.75
+  max_send_backs: 2
+
+required_skills:
+  - pipelines/localization/executive-producer
+  - meta/media-review-gate
+  - meta/edit-pipeline
+  - meta/reviewer
+  - meta/quality-gate
+  - meta/checkpoint-protocol
+  - core/localization
+  - core/audio-gen
+  - core/remotion-compose
+
+stages:
+  - name: preflight
+    skill: pipelines/localization/executive-producer
+    produces:
+      - localization_brief
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - source path, source language, target language, caption mode, voiceover choice, and aspect ratio are explicit
+
+  - name: transcribe
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - localization_brief
+    produces:
+      - transcript
+    tools_available:
+      - transcribe_media
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - real ASR output or user-supplied timed captions are present
+
+  - name: translate
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - transcript
+    produces:
+      - localized_captions
+      - localization_plan
+    tools_available:
+      - translate_captions
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - every cue preserves its source ID and timing
+      - exact TTS and render request previews are present
+
+  - name: confirm
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - localized_captions
+      - localization_plan
+    produces:
+      - approved_localization_contract
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: true
+    success_criteria:
+      - user explicitly approved the displayed localization contract version
+
+  - name: voiceover
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - approved_localization_contract
+    produces:
+      - voiceover_result
+    optional_tools:
+      - generate_localized_voiceover
+    tools_available:
+      - generate_localized_voiceover
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - voiceover is generated only when explicitly requested, otherwise the result records skipped
+
+  - name: render
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - approved_localization_contract
+      - localized_captions
+    produces:
+      - localized_media
+    required_tools:
+      - render_localized_video
+    tools_available:
+      - prepare_localized_captions
+      - render_localized_video
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - localized output is a new non-empty readable file
+
+  - name: locale_qa
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - localized_media
+    produces:
+      - locale_qa
+    required_tools:
+      - validate_localized_media
+    tools_available:
+      - validate_localized_media
+    checkpoint_required: true
+    human_approval_default: false
+    success_criteria:
+      - subtitle timing, overlap, line count, output existence, and video probe pass
+
+  - name: deliver
+    skill: pipelines/localization/executive-producer
+    required_artifacts_in:
+      - locale_qa
+    produces:
+      - delivery_report
+    tools_available: []
+    checkpoint_required: false
+    human_approval_default: false
+    success_criteria:
+      - delivery report links approved contract, localized output, QA, cost, and receipts

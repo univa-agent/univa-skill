@@ -447,7 +447,7 @@ export const useChat = (opts?: { onFilesGenerated?: (files: GeneratedFile[]) => 
                 messageType: 'pipeline_stage',
               };
               setState(prev => ({ ...prev, messages: [...prev.messages, stageDone] }));
-            } else if (data.type === 'pipeline_suspended') {
+            } else if (data.type === 'pipeline_suspended' || data.type === 'pre_generation_gate') {
               isCompleted = true;  // Stop reconnection attempts
               const suspendedMsg: Message = {
                 id: generateUniqueId(),
@@ -700,7 +700,10 @@ export const useChat = (opts?: { onFilesGenerated?: (files: GeneratedFile[]) => 
       // Call the resume endpoint
       const response = await fetch('/api/chat/resume', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(state.accessCode ? { 'X-Access-Code': state.accessCode } : {}),
+        },
         body: JSON.stringify({
           session_id: state.sessionId,
           continuation_token: continuationToken,

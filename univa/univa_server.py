@@ -210,6 +210,7 @@ async def stream_chat_response(
             user_prompt,
             is_frontend=is_frontend,
             project_context=project_context,
+            owner_id=user_id,
         ):
             if event.get('type') == 'finish':
                 event['session_id'] = session_id
@@ -518,7 +519,7 @@ async def root():
 
 
 @app.post("/chat/resume")
-async def resume_pipeline(request: ResumeRequest):
+async def resume_pipeline(request: ResumeRequest, req: Request):
     """
     Resume an interactive pipeline from a suspended (awaiting_human) state.
 
@@ -532,6 +533,10 @@ async def resume_pipeline(request: ResumeRequest):
         if not orchestrator:
             raise HTTPException(status_code=500, detail="Pipeline orchestrator not available")
 
+        owner_id = getattr(req.state, 'user_id', 'anonymous')
+        if not request.continuation_token:
+            raise HTTPException(status_code=400, detail="continuation_token is required")
+
         state = orchestrator.get_state(request.session_id)
         if not state:
             raise HTTPException(
@@ -540,20 +545,41 @@ async def resume_pipeline(request: ResumeRequest):
                        f"The session may have expired or already completed."
             )
 
+        if state.owner_id and state.owner_id != owner_id:
+            # Do not reveal another user's session status.
+            raise HTTPException(
+                status_code=404,
+                detail=f"No active pipeline for session '{request.session_id}'",
+            )
+
         if state.status != "awaiting_human":
             raise HTTPException(
                 status_code=409,
                 detail=f"Pipeline is not awaiting input (status: {state.status})"
             )
 
-        # Process user input through the orchestrator
-        state = await orchestrator.resume(request.user_input, system, request.session_id)
+        # Process user input through the orchestrator. The owner and token are
+        # checked before any stage can execute.
+        try:
+            state = await orchestrator.resume(
+                request.user_input,
+                system,
+                request.session_id,
+                continuation_token=request.continuation_token,
+                owner_id=owner_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         return {
             "session_id": request.session_id,
             "pipeline": state.pipeline_name,
             "status": state.status,
             "current_stage": state.current_stage_index,
+            "interaction_stage": state.interaction_stage,
+            "continuation_token": state.continuation_token,
             "artifacts": {k: str(v)[:500] for k, v in state.artifacts.items()},
             "budget": state.budget.summary() if state.budget else None,
         }
@@ -567,7 +593,7 @@ async def resume_pipeline(request: ResumeRequest):
 
 
 @app.get("/chat/pipeline/{session_id}")
-async def get_pipeline_state(session_id: str):
+async def get_pipeline_state(session_id: str, req: Request):
     """
     Get the current state of an interactive pipeline for a given session.
     Useful for frontend to poll status or recover from disconnection.
@@ -579,12 +605,16 @@ async def get_pipeline_state(session_id: str):
         if not orchestrator:
             raise HTTPException(status_code=500, detail="Pipeline orchestrator not available")
 
+        owner_id = getattr(req.state, 'user_id', 'anonymous')
         state = orchestrator.get_state(session_id)
         if not state:
             raise HTTPException(
                 status_code=404,
                 detail=f"No active pipeline for session '{session_id}'"
             )
+
+        if state.owner_id and state.owner_id != owner_id:
+            raise HTTPException(status_code=404, detail=f"No active pipeline for session '{session_id}'")
 
         return {
             "session_id": session_id,
