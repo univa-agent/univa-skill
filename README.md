@@ -1,4 +1,4 @@
-# UniVA
+# UniVA-Skill
 
 <p align="center">
   <a href="https://univa.online"><img src="https://img.shields.io/badge/Project-Website-orange" alt="Project Website"></a>
