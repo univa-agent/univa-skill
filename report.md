@@ -1,487 +1,158 @@
-# UniVA-SKILL 功能实现报告
-
-> 第三轮修改稿。本文基于当前仓库实现、已有功能报告素材和指导意见整理，重点从“系统实现说明”调整为“调研反查、功能刻画、技术剖析、场景展示”的报告结构。  
-> 当前仓库根目录 `report.md` 原文件为空，本稿主要吸收 `allmd/univa_function_report_abcd.md`、`allmd/univa_skills_mcp_analysis.md`、`allmd/three_layer_skill_framework_refactor.md`、`skills/INDEX.md`、`pipeline_defs/*.yaml` 和 `README.zh-CN.md` 中已有内容。
-
-## A. 前期调研
-
-### A.1 OpenMontage 调研
-
-#### A.1.1 项目定位
-
-OpenMontage 是一个面向智能体的视频生产项目。它的基本思路不是提供一个单独的视频生成接口，而是把视频制作拆成 pipeline、stage director skill、tool、review 和 checkpoint。用户提出视频需求后，AI coding agent 读取项目中的说明文件和流水线配置，按阶段完成调研、方案、脚本、场景计划、素材生成、剪辑和最终合成。
-
-这一点和 UniVA-SKILL 的方向比较接近：二者都不是简单调用一个模型，而是把“创作过程”作为系统的一部分来设计。不同之处在于，UniVA-SKILL 当前更聚焦在图像、视频、音频、编辑、理解等 MCP 工具的统一调用，以及 Codex/Claude Code/后端/Web 前端共用同一套 skill 与 review gate。
-
-#### A.1.2 OpenMontage 功能清单
-
-根据公开 README，OpenMontage 把视频生产拆成多个可选 pipeline。对 UniVA-SKILL 来说，这些 pipeline 可以作为反查表，用来判断我们已经覆盖了哪些视频类型，哪些还只是工具层具备但没有形成完整展示。
-
-| OpenMontage pipeline | 主要产出 | 对 UniVA-SKILL 的参考意义 |
-|---|---|---|
-| Animated Explainer | 调研、旁白、视觉、音乐组合的解释型视频 | 对应 UniVA 的 PPT 式演示视频和科普讲解场景 |
-| Animation | 动态图形、动态排版、动画序列 | 对应动漫/漫剧、科幻动漫、国潮等 theme 场景 |
-| Avatar Spokesperson | 虚拟人或讲述人视频 | UniVA 当前不是主展示方向，可作为后续扩展项 |
-| Cinematic | 预告片、品牌片、情绪片 | 对应剧场故事、广告、旅行风光、汽车广告 |
-| Clip Factory | 长视频切短视频、批量短视频 | UniVA 当前有理解和编辑能力，但还没有独立批量切条 pipeline |
-| Documentary Montage | 从素材库检索真实视频并剪辑成 montage | UniVA 当前更偏生成式，素材检索与授权链路需要补 |
-| Hybrid | 源素材加 AI 生成辅助画面 | 对应“上传视频 -> 理解 -> 补镜头 -> 合并”的复合流程 |
-| Localization & Dub | 翻译、字幕、配音 | UniVA 有字幕包装和 speech/audio 工具，翻译与对口型还需补齐 |
-| Podcast Repurpose | 播客内容转短视频或 audiogram | UniVA 有音频工具，但缺少播客再创作 pipeline |
-| Screen Demo | 软件录屏、教程、产品演示 | 对应安装流程录屏和 Web 编辑器录屏展示 |
-| Talking Head | 讲话人、访谈、演示类视频 | UniVA 当前不作为主能力展示 |
-
-#### A.1.3 对报告写法的启发
-
-OpenMontage README 的主要特点是先写“能做什么”，再写“怎么实现”。这对当前报告的修改有直接参考意义：
-
-1. 把功能清单放在前面，先让用户和评审知道系统支持哪些任务。
-2. 把 pipeline、skill、tool、artifact 放到技术剖析部分，不在首页零散展开。
-3. 把 demonstration 单独成章，用真实成片、录屏、链接作为证据。
-4. 把缺口明确写出来，避免把工具层能力写成已经完整产品化的能力。
-
-### A.2 Motion / Remotion 调研
-
-#### A.2.1 Motion 的定位
-
-Motion 是面向 React、JavaScript、Vue 的 Web 动画库，主要用于页面动效、手势、滚动动画、布局动画、弹簧动画和交互动画。它适合前端界面，不适合作为视频生成、视频编辑或多媒体 pipeline 的核心能力来介绍。
-
-因此，Motion 在本文中的位置应当放在前期调研中，用来说明“前端动效库”和“媒体生产系统”之间的边界。UniVA-SKILL 的正文不应把 Motion 作为主功能展开。
-
-#### A.2.2 Remotion 的定位
-
-Remotion 是用 React 程序化生成视频和动态图形的框架。它可以通过代码渲染 MP4，也适合做字幕、标题卡、数据卡、品牌角标、CTA、进度条等确定性图层。
-
-在 UniVA-SKILL 当前实现中，Remotion 的定位是“最终包装层”，不是视频生成模型，也不是编辑模型。它在生成计划批准之后使用，用来做可控的字幕和图层包装。当 Remotion 在本地环境无法运行时，系统可以退回到 FFmpeg ASS 字幕烧录。
-
-#### A.2.3 为什么 Remotion 不应散落正文
-
-原始材料中 Remotion、前端、后端、agents、pipeline 等内容容易混在一起。按指导意见，Remotion 应集中写在 A.2 和 C.4 中：
-
-1. A.2 写调研结论：Remotion 是程序化视频框架。
-2. C.4 写实现位置：UniVA 把 Remotion 当最终包装层。
-3. B 模块只写系统支持什么功能，不把 Remotion 写成一个独立生成模态。
-
-### A.3 Skill 机制基础调研
-
-#### A.3.1 Agent 自动读取机制
-
-UniVA-SKILL 的运行前提是外部 agent 能够读取仓库中的本地说明文件。当前仓库的入口文件包括：
-
-- `AGENTS.md`：外部智能体进入仓库后的总规则。
-- `skills/INDEX.md`：skill、pipeline、MCP tool 的总索引。
-- `skills/agent-integrations/codex-univa-video-ops/SKILL.md`：Codex 使用 UniVA 媒体能力的接入说明。
-- `skills/agent-integrations/claude-code-univa-video-ops/SKILL.md`：Claude Code 使用 UniVA 媒体能力的接入说明。
-- `skills/meta/media-review-gate.md`：所有媒体生成和编辑任务的审批规则。
-
-#### A.3.2 Skill 装载方式
-
-当前 skill 装载并不是把所有 Markdown 一次性塞给模型，而是按任务和工具选择相关内容：
-
-1. 任务识别阶段读取 `skills/INDEX.md` 和 meta skill。
-2. 生成、编辑、理解等任务按 pipeline 加载对应 director skill。
-3. 工具调用前读取对应 core skill，把函数名、参数、输出和失败形态作为执行合同。
-4. theme skill 只做质量增强，不改变工具合同和审批规则。
-
-#### A.3.3 对 UniVA-SKILL 的调研结论
-
-UniVA-SKILL 的文档应把 skill 写成“系统能力组织方式”，而不是只写成文件列表。评审真正关心的是：这些 skill 如何约束 agent，如何避免跳过审批，如何保证最终输出可追踪。
-
-## B. 功能刻画
-
-### B.1 原子功能
-
-本节只描述系统支持的原子功能，不放运行日志，也不放 Codex 的确认信息。运行过程和 artifact 证据放到 C 和 D 中说明。
-
-#### B.1.1 文生视频
-
-文生视频是 UniVA-SKILL 的基础视频生成能力。用户输入文本需求后，系统先把需求拆成镜头计划、视觉描述、运动方式、时长、画幅、转场和声音策略，再通过视频生成工具生成片段。
-
+        UniVA-Skill 功能报告：创作与架构
+A. 基础能力
+1. 文生视频
+1.1 能力实现
+UniVA 的文生视频能力基于大量skill辅助。用户只需提供简单文本描述，系统可以将需求拆成明确的意图、镜头计划、生成应提示词、时长、画幅、转场和音频等配套策略，在规范的审查流程框架下产出视频片段。
 当前实现入口包括：
+1.2 执行流程
+文生视频不会直接把用户原始 prompt 交给视频模型，而是会经过整套审查辅助流程：
+1.读取并解析用户的需求，根据用户需求读取对应的skills拓展能力范围
+2.对参考主题先收集公开资料并记录资料助力生成。
+3.生成调研简报，分镜规划，内容验证报告等中间辅助产物。
+4.向用户展示分镜计划，并等待用户确认或修改。
+5.待用户批准后，才最终用批准计划中信息内容调用生成视频
+6.完成任务汇总和最终产物信息汇报。
+1.3 效果展示
+https://player.bilibili.com/player.html?bvid=BV1e5hg6aE4u&autoplay=false简单的“东京奥运会宣传片”指令下生成的具体内容。
+2. 文生图
+2.1 能力实现
+文生图同为univa-skill的基础能力，可用于生成独立海报、产品风格图、关键帧、视频首帧、分镜视觉参考等。它既可以作为单独任务，也可以作为图生视频或多镜头视频的前置产物，在多轮任务中起重要作用。
+2.2 执行流程
+文生图同样受严格的审查和skills约束：
+1.系统识别为独立图片生成任务，按照任务要求生成规划和初步审查。
+2.展示经过优化后的提示词、图片数量、画面构图、风格、参考资料、负面约束和输出策略，等待用户确认。
+3.用户确认后才执行生成任务。
+4.生成后检查文件存在和非零大小，写入生成报告。
+2.3 效果展示
+
+中国古风水墨画
+
+开往城市的科幻风冰原列车
+3. 图生视频
+3.1 能力实现
+复杂的skill约束使得univa-skill具有准确图生视频的能力，可把静态图片、首帧、参考图、产品图或角色设定图转成贴合需求的动态视频，将“图片资产”和“视频创作”进行链接。通过层次递进解决文本生成不稳定的问题，让用户能先确认视觉，再扩展成运动镜头。
+3.2 执行流程
+1.用户上传或生成图片后，系统记录源图路径、尺寸、用途和期望实现规则。
+2.计划阶段明确运动方式，景深变化，粒子变化等动态信息。
+3.生成审批报告，展示最终提示词、转换后时长、画幅、保留内容和具体变化。
+4.用户批准后执行具体生成。
+5.结果交付之后，可继续工作流，在对刚才生成的内容进行新的操作。
+3.3 效果展示
+---》上传图和以此生成的视频
+
+B. 详细功能及复合展示
+1. 经典功能
+功能	实现
+编辑视频	对期望修改的视频内容提供描述，univa-skill会确保视频其他部分不被错误改动的情况下完成包括风格迁移，局部重绘，深度修改等视频编辑内容
+视频拼接	提供一个或多个视频资源，使其与生成的资源或者互相之间进行拼接。可生成前后帧转换中间视频、进行蒙版镜头转变、黑白转场，淡入淡出等多种拼接方式
+音频生成	除生成视频自带的音频外，可通过第三方工具生成对应于视频内容的音乐，音效或者人声旁白，也可以之间通过内置ffmpeg生成环境，背景，氛围声等音效
+字幕生成	为视频在不同位置添加不同特征的字幕，添加首尾标题
+2.特色功能
+2.1 Agent友好的skills
+Univa-skills对不同外部智能体设置了Agent专用skill，使得外部智能体可读取全部skills并协作创作。具体任务中，可以高效且针对性的读取和用户任务相关的skills，从而通过大量的skills内容丰富创作技能库，提升创作质量。
+2.2 模糊需求的详细扩充
+用户在传达生成任务时，往往表述不够明确，导致生成任务出现偏差，使得预期于最终生成实物严重不符，而大量准确的提示词编写又较为困难，因此Univa-skill实现将用户简单的一句话扩展为包含风格、分镜、情景、转场、素材策略和质量检查等内容的详细提示词。从而在保留用户本意的情况下，更明确清晰的生成丰富的可执行分镜和提示词内容。
+2.3 多种方案的创意提案
+用户没有确定具体创意方向时。Univa-skill可向用户展现多个创意提案供用户选择，快速生成多个可能场景，分镜，和具体实现表述，从而帮助用户在生产中开拓思维，也能助力用户切实的选择更好的版本进行最终生成。
+2.4 可供审查的中间产物
+Univa-skill会将包括智能体思考过程，加载skills目录，分镜规划，调研报告，最终提示词，总结汇报等所有相关中间产物一并保留，用户可清晰的看到每一个环节发生的事情，将传统生成中“给出提示词后直接生成”所不可见的中间过程也一并展现出来。便于用户明晰过往的具体信息并针对性的修改接下来的生成计划。
+2.5 准确完善的审查机制
+在通过外部智能体运行Univa-skill时，可能会因外部智能体幻觉导致运行出现细微偏差，但项目通过详细完善的审查机制，确保在遇到偏差时能被迅速挽回正轨。既对分镜和提示词等关键信息进行规范审查，又避免产物或输入输出格式错误，避免网络波动引起的多次api调用，避免错误的下载或上传等问题。
+
+3. 可串联多功能的复合任务实现
+3.1 可实现的复合任务流程
+一个完整复合任务可以按如下流程发展：
+1.用户给出例如产品视觉或角色设定等文字描述，生成对应的图片。
+2.以1中生成的图片为基础,将其扩展为动态视频。
+3.利用文字描述搭配对2中视频的理解，补充生成第二镜头，扩充资源。
+4.对第二镜头进行局部编辑和修改。。
+5.通过两个视频的首尾帧信息生成中间过渡片段，将所有内容合并为整个视频。
+6.通过音频工具生成符合视频内容的 BGM。
+7.为视频添加标题、字幕等补充内容最终交付完整视频。
+8.继续工作流，可生成新的资源或者对已有内容进行修改。
+3.2 复合任务实现展示
+---》复合任务视频或者具体示例的描述
+
+C. Skill 设计架构
+1. 设计原则
+1.1 通用设计原则
+目标明确：每个技能要有清晰用途，解决什么问题、在什么场景下使用。
+职责明确：一个技能尽量只做一件事，避免功能堆叠，便于理解与组合。
+内容明确：从设计角度就面向于易于外部智能体或agent理解，便于快速学习和掌握。
+可复用性：设计时便考虑能否在不同场景、不同组合中被重复使用，减少运行过程中skills的加载量。
+可组合性：不同skills之间可以同时加载而不是彼此孤立。
+可扩展性：后续可添加新skills，只需在注册skill处进行注册即可。
+1.2 专项设计原则
+要素统一性：图像、音频、视频等不同模态生成过程中应保证关键信息统一，确保前后内容例如像素，光影，剧情，音声强度等内容能保持一致。
+时序一致性：视频生成技能必须进行时序判断，确保对象、纹理、运动在时间上连续，避免产生影响质量的闪烁和跳变。
+流程一致性：对于同一类型任务，在多次执行中应具有相同且完善的流程。
+多级选择性：支持不同需求生成，例如支持生成不同分辨率内容，不同画幅大小，用不同工具支持同一个功能等，灵活组织不同需求。某个技能失败时，工作流应能降级运行。
+多维度评估：对生成内容从内容一致性、音频同步性、视觉质量、风格符合度等多个维度分别评估，而不是单一指标。
+可编辑性：生成结果和中间产物均应支持编辑和查看，方便理解和优化。
+隐私保护：涉及人脸、敏感内容等信息时，能够做出审核和保护措施。
+
+2. 架构展示
+2.1 Core Skills
+Core Skills 约束底层mcp工具，包含函数名、参数、默认行为、返回字段、输出路径。用于在各种任务中规范中间产物和最终生成任务之间的准确交付，确保各个阶段的输入输出正常传递。
+2.2 Creative Skills
+Creative Skills 负责创意扩展和质量提升，包括文案扩充、风格基调、镜头设计、时长规划、素材匹配、转场、声音、字幕、角色一致性和创意质量门等一系列生产过程中的具体细节部分使得生产中的每个细节都有保障。
+2.3 Meta Skills
+Meta Skills 负责全流程大纲，包括规划和执行协议、任务流执行、质量检测、复合意图拆解等一系列贯穿任务流始终的部分。
+2.4 Pipeline Skills
+Pipeline Skills 负责具体流水线阶段，明确不同场景下使用不同的流水线执行任务，并详细规定每个流水线环节中需要读取的其他skills或者需要实现的内容
+2.5 Theme Skills
+Theme Skills 负责针对专题内容进行生成优化，可以按关键词自动匹配加载高置信度的主题。可以增强提示词、视觉、分镜、内容结构和音效内容，使得生成内容更加贴合对应的主题，而不改变pipeline、审批 或用户明确的附加约束。
+2.6 User Skill
+User Skill负责记录用户的个人偏好。可设置多个不同风格的偏好skill并通过配置文件激活偏好，运行时通过用户偏好文件可被优先加载并设置高优先级，使后续多轮创作保持稳定风格和约束。
+
+D. 典型 Theme 场景示例
+1. 商品广告
+1.1 场景描述
+用于产品广告、产品推广、商业视频、广告影片和以转化为导向的营销视频的增强技能
+1.2 可生成视频
+---》对应视频demo和具体增强
+2. 漫画风格
+2.1 场景描述
+适合动漫，卡通，虚拟人物角色，加载更明显的动画线条和人物风格，增强动漫主题，匹配对应的镜头运动和光效纹理的增强skill
+
+2.2 可生成视频
+---》对应视频demo和具体增强
+3. 逼真写实
+3.1 场景描述
+用于现实世界、照片级真实、真人、特写、肖像刻画、对话或人类情感表达的增强skill
+3.2 可生成视频
+---》对应视频demo和具体增强
+4. 科幻虚拟
+4.1 场景描述
+用于虚拟世界、科幻小说、未来世界、超现实主义等关于高科技，虚拟玄幻科幻内容的增强skill
+4.2 可生成视频
+---》对应视频demo和具体增强
+
+附录：建议展示结构
+1.系统实现
+1.1 后端 Agent
+Univa-skill项目具有独立后端，后端核心具有和外部智能体协作下相似的功能，可加载本地skill，通过plan/act架构实现Agent功能，同样能够完成识别需求，生成pipeline和具体规划，生成分镜，扩充提示词，质量检测和最终生成的复杂任务。
+服务入口在 univa/univa_agent.py提供。
+1.2 FastAPI 服务
+Univa-skill具有前端web界面，且可与后端通过项目自带server建立联系实现前端aichat界面，并附加SSE 聊天与任务执行功能，前端素材文件管理，skill 与 pipeline 查询，访问码管理等功能。
+服务入口在 univa/univa_server.py提供。
+1.3 前端编辑器
+具体前端编辑器具备：
+●项目管理：可保存历史项目、新建项目。
+●素材库：支持本地的图片、视频、音频上传；上传后保存并显示在素材库中。
+●时间线：实现媒体轨、文字轨、音频轨，支持拖拽、移动、剪切、分割、保留左/右、静音、隐藏、吸附、缩放、撤销/重做等媒体编辑功能。
+●AI Chat：支持agent对话，支持用户直接使用素材库 [1]、[2] 指代项目素材进行创作。
+●自动导入：生成的文件内容可自动加入素材库，直接进入时间线编辑，实现同一个界面创作+编辑同时完成。
+前端启动方式：
+python -m uvicorn univa.univa_server:app --host 0.0.0.0 --port 8000
+cd apps/web
+npm run dev
+
+主要页面：编辑器：http://localhost:3000/editor/<project_id>
+
+2. 配置与供应商切换
+1.1 参数配置
+在univa/config/mcp_tools_config/config.yaml中配置常规参数，例如供应商，具体模型，输出路径等内容。
+1.2 .敏感配置
+.env 则用于存储调用不同工具的具体敏感api值
 
-- Core Skill：`skills/core/wavespeed-video-gen.md`
-- 主要工具：`plan_video_shots`、`text2video_gen`、`merge2videos`
-- Codex 直连入口：`scripts/codex_video_runner.py`
-- 典型产物：`research_brief.json`、`shot_plan.json`、`storyboard_review.json`、`delivery_report.json`
-
-适合展示的任务包括商品广告、故事短片、科技宣传片、风格化镜头和平台短视频。
-
-#### B.1.2 文生图
-
-文生图用于生成独立图片，也可以作为视频生成的上游素材。它可以生成海报、产品主视觉、角色设定图、关键帧、封面图和分镜参考图。
-
-当前实现入口包括：
-
-- Core Skill：`skills/core/wavespeed-image-gen.md`
-- 主要工具：`text2image_generate`
-- 扩展工具：`image2image_generate`、`sequential_image_gen`
-- Pipeline：`media-atomic`
-
-在复合流程中，文生图经常用于先稳定角色、产品或场景，再进入图生视频。
-
-#### B.1.3 图生视频
-
-图生视频把静态图片、首帧、产品图或角色图转为动态视频。它的价值在于让用户先确认视觉锚点，再生成运动画面，减少纯文本生成带来的不确定性。
-
-当前实现入口包括：
-
-- Core Skill：`skills/core/wavespeed-video-gen.md`
-- 主要工具：`image2video_gen`、`frame2frame_video_gen`
-- 相关 creative skill：`styleframe-direction`、`material-matching`、`asset-generation`
-
-适合展示“产品图动起来”“角色设定变成短镜头”“海报转动态广告”“首尾帧生成过渡片段”等任务。
-
-#### B.1.4 视频理解
-
-视频理解用于分析上传视频或生成结果。系统可以提取内容、风格、镜头节奏、主体、背景、动作、质量问题和可复用提示词。
-
-当前实现入口包括：
-
-- Core Skill：`skills/core/video-understanding.md`
-- 主要工具：`vision2text_gen`
-- Pipeline：`video-understand`
-- Codex 直连入口：`scripts/codex_video_task_runner.py --task understand`
-
-该能力通常不单独作为最终卖点，而是服务于编辑、复刻风格、质量检查和前端素材理解。
-
-#### B.1.5 视频编辑
-
-视频编辑不是直接修改源文件，而是先分析源视频，再生成编辑提案，用户确认后才调用工具。当前实现覆盖：
-
-| 编辑类型 | 当前状态 | 对应工具/实现 | 说明 |
-|---|---|---|---|
-| 风格迁移 | 已支持 | `style_transfer` | 适合把实拍、录屏或生成视频转为水彩、动漫、科技风等 |
-| 局部重绘 | 已支持 | `repainting` | 可用于局部区域、物体或背景修改 |
-| 深度修改 | 已支持 | `depth_modify` | 用于空间结构、深度相关画面修改 |
-| 姿态参考 | 已支持 | `pose_reference` | 用参考姿态或动作约束生成结果 |
-| 换背景 | 间接支持 | `repainting` | 需要在提案中写清保留主体和背景替换规则 |
-| 换物体 | 间接支持 | `repainting` | 适合局部替换，但需要 demo 验证稳定性 |
-| 换角色 | 间接支持 | `repainting`、`pose_reference` | 需要角色一致性约束和对比 demo |
-| 抠图 | 待补齐/需验证 | `video_referring_segmentation` | 当前有指代分割能力，但还需形成透明主体或 mask 输出流程 |
-
-#### B.1.6 片段拼接与首尾帧过渡
-
-片段拼接由 `merge2videos` 支持，转场和合并规则由 `skills/core/ffmpeg-merge.md` 约束。当前支持硬切、crossfade、fadeblack、fadewhite 等常见转场，也可以通过中文别名表达“淡入淡出”“黑场”“白场”等。
-
-首尾帧过渡视频的实现思路是：从前一段视频抽取尾帧，从后一段视频抽取首帧，再用 `frame2frame_video_gen` 生成中间过渡片段，最后三段合并。当前工具链具备实现条件，建议单独做一个 demo 证明。
-
-#### B.1.7 音频、语音与混音
-
-音频能力由 `skills/core/audio-gen.md` 和 `univa/mcp_tools/audio_gen.py` 支撑。系统可规划并生成 BGM、环境声、音效、转场音，也可在用户明确要求时生成旁白、口播或角色语音。
-
-默认策略是：优先保留视频生成模型返回的音频；如果没有音频，再调用专门的音频工具；如果专门音频工具失败，则使用 FFmpeg fallback 并在交付报告中记录限制。
-
-### B.2 复合功能
-
-UniVA-SKILL 的重点是把原子功能组合成完整工作流。下面列出适合正文展示的 5 个代表性组合。
-
-#### B.2.1 文本到广告成片
-
-流程为：文本需求 -> 分镜计划 -> 文生视频 -> 多段拼接 -> BGM/SFX -> 字幕/CTA 包装 -> 交付报告。
-
-该流程适合展示电车广告、饮料广告、手机广告和品牌短片。已有 `docs/assets/readme/ev-ad-captioned.mp4` 可以作为基础示例。
-
-#### B.2.2 文本到图像再到视频
-
-流程为：文本需求 -> 文生图生成主视觉或角色图 -> 图生视频扩展运动 -> 补充文生视频镜头 -> 合并成片。
-
-该流程适合展示“先确定视觉，再生成视频”的稳定创作方式。
-
-#### B.2.3 上传视频后编辑增强
-
-流程为：上传视频 -> 视频理解 -> 编辑提案 -> 用户确认 -> 风格迁移/局部重绘/换背景 -> 结果复核。
-
-该流程适合展示 UniVA-SKILL 的 editing gate，而不是把原视频直接交给工具修改。
-
-#### B.2.4 两段视频生成过渡并合并
-
-流程为：视频 A -> 抽取尾帧；视频 B -> 抽取首帧；首尾帧生成过渡视频 -> A + 过渡 + B 合并。
-
-该流程能直接体现“首尾帧插入过渡视频”的能力，建议放入演示部分。
-
-#### B.2.5 PPT 式演示视频
-
-流程为：论文/项目要点 -> 分镜 -> 标题卡/图表/字幕 -> 旁白或 BGM -> Remotion 包装 -> 成片。
-
-该流程适合对标 OmniScientist/HuggingFace 页面中的动态 demo 形式，用于论文展示、项目介绍和课程演示。
-
-### B.3 功能对照表
-
-| 功能类别 | OpenMontage/Motion/Remotion 参考 | UniVA-SKILL 当前实现 | 当前判断 |
-|---|---|---|---|
-| Agent 驱动视频 pipeline | OpenMontage 以 pipeline 组织视频生产 | `pipeline_defs/*` + `skills/pipelines/*` | 已支持 |
-| 文生视频 | OpenMontage 视频生产基础能力 | `text2video_gen`、`plan_video_shots` | 已支持 |
-| 文生图 | OpenMontage 可生成支撑素材 | `text2image_generate` | 已支持 |
-| 图生视频 | 生成式视频和素材驱动视频 | `image2video_gen`、`frame2frame_video_gen` | 已支持 |
-| 视频理解 | 参考视频分析、素材理解 | `vision2text_gen`、`video-understand` | 已支持 |
-| 视频编辑 | OpenMontage 支持多类后期流程 | `style_transfer`、`repainting`、`depth_modify`、`pose_reference` | 已支持基础编辑 |
-| 抠图/分割 | 素材级编辑常见需求 | `video_referring_segmentation` | 需补完整展示 |
-| 换角色/换物体/换背景 | 编辑类常见细分 | `repainting` + 编辑提案 | 间接支持，需 demo 验证 |
-| 多段拼接 | OpenMontage edit/compose 阶段 | `merge2videos` | 已支持 |
-| 首尾帧过渡视频 | 视频间自然衔接需求 | `frame2frame_video_gen` + `merge2videos` | 工具链具备，需展示 |
-| 字幕/标题/CTA | Remotion 强项 | `remotion_compose_video`、FFmpeg fallback | 已支持 |
-| 前端动效 | Motion 强项 | Web 前端可使用相关思路 | 非核心能力 |
-| PPT 式动态演示 | Remotion/解释型视频可参考 | Remotion 包装 + story-video | 需补展示 |
-| 长视频批量切条 | OpenMontage Clip Factory | 当前没有独立 pipeline | 待补 |
-| 纪录片素材检索 montage | OpenMontage Documentary Montage | 当前没有检索公开素材库 pipeline | 待补 |
-| 多语言本地化/配音 | OpenMontage Localization & Dub | `speech_gen` + 字幕基础能力 | 待完善 |
-
-## C. 技术剖析
-
-### C.1 Skill 设计规范
-
-#### C.1.1 工具合同优先
-
-UniVA-SKILL 中，core skill 是 MCP 工具的执行合同。普通任务执行时，应以 `skills/core/*.md` 中写明的函数名、参数、默认值、返回字段、输出路径和失败形态为准。只有在维护工具、调试合同不一致或 core skill 缺失时，才需要直接阅读 `univa/mcp_tools/*.py`。
-
-这一设计把“工具怎么调”从代码实现中抽出来，让 Codex、Claude Code、后端 agent 和 Web 前端都能按同一套说明调用工具。
-
-#### C.1.2 生成前必须可审查
-
-所有会生成或修改媒体的任务都要先产出计划或提案，再进入人工确认。视频生成对应 `shot_plan.json`、`storyboard_validation.json`、`storyboard_review.json`；图片、音频和轻量媒体任务对应 `media_plan.json`、`media_plan_validation.json`、`media_plan_review.json`；视频编辑对应 `edit_proposal.json` 和 `edit_proposal_review.json`。
-
-确认通过后，工具调用必须使用已批准版本中的 exact prompt、源路径、时长、画幅、音频策略和参数，不能再临时改写。
-
-#### C.1.3 Artifact 作为审计记录
-
-每次生成或编辑都要能回看以下内容：
-
-1. 加载了哪些 skill。
-2. 计划是如何形成的。
-3. 用户批准的是哪个版本。
-4. 实际调用了哪个 MCP 工具。
-5. 输出文件是否存在、是否可读、是否写入交付报告。
-
-因此，`skill_context.json`、`shot_plan.json`、`storyboard_review.json`、`generation_handoff.json`、`clip_results.json`、`delivery_report.json` 是 UniVA-SKILL 报告中应该重点展示的证据链。
-
-### C.2 具体 Skill 设计
-
-#### C.2.1 Core Skills
-
-Core Skills 约束原子工具调用：
-
-- `wavespeed-video-gen`：文生视频、图生视频、帧间视频、故事视频、视频续写、视频合并。
-- `wavespeed-image-gen`：文生图、图生图、序列图。
-- `video-editing`：深度修改、风格迁移、局部重绘、姿态参考。
-- `video-understanding`：图片/视频理解。
-- `video-tracking`：文本指代分割。
-- `audio-gen`：音频、语音、音频计划、混音。
-- `ffmpeg-merge`：视频合并、转场、音频处理。
-- `remotion-compose`：字幕、标题、CTA、品牌图层等最终包装。
-- `prompt-validator`：生成前 prompt 完整性和矛盾检查。
-
-#### C.2.2 Creative Skills
-
-Creative Skills 负责把用户的模糊需求变成可执行创作方案。当前包括 brief、文案、风格帧、镜头规划、能量曲线、时长、素材匹配、转场声音字幕、角色一致性和创意质量检查等模块。
-
-这部分不直接调用工具，而是帮助计划阶段形成更稳定的镜头、prompt 和包装策略。
-
-#### C.2.3 Meta Skills
-
-Meta Skills 负责跨任务控制，包括：
-
-- 规划和执行协议：`plan-agent-protocol`、`act-agent-protocol`
-- 审批和暂停：`media-review-gate`、`checkpoint-protocol`、`pause-forhelp`
-- 质量控制：`reviewer`、`quality-gate`
-- 任务路由：`generate-pipeline`、`edit-pipeline`、`understand-pipeline`、`chat-router`
-- 输出与前端：`output-formatter`、`frontend-editor`
-- 用户偏好：`user-maker`、`user-creator`、`user-preference-manager`
-
-#### C.2.4 Pipeline Skills
-
-Pipeline director skill 对应 `pipeline_defs/*.yaml` 中的阶段。当前主要 pipeline 包括：
-
-| Pipeline | 作用 | 典型阶段 |
-|---|---|---|
-| `media-atomic` | 单图片、单音频、图片编辑等轻量媒体任务 | analyze、proposal、confirm、execute、validate |
-| `story-video` | 多镜头故事视频生成 | idea、script、scene_plan、assets、edit、compose |
-| `creative-proposal` | 先给多个创意方案，再确认生成 | proposal、selection、storyboard、confirm、generate、deliver |
-| `video-edit` | 视频编辑与多轮修改 | analyze、proposal、execute、review |
-| `video-understand` | 图片/视频理解 | analyze、present、refine |
-| `master` | 总路由 | analyze、resolve、execute |
-
-#### C.2.5 Theme Skills
-
-Theme Skills 是质量增强层。当前仓库包含广告、汽车、漫画、国潮、科幻动漫、科普、旅行、美妆、教育、医疗健康、金融商业、食品烹饪、游戏电竞等主题。
-
-Theme skill 只增强 prompt、视觉、分镜、内容结构和声音建议，不改变审批规则、工具合同和用户明确约束。
-
-### C.3 Prompt 与 Pipeline 总体划分
-
-Prompt、Pipeline 和 Tool 的职责应分开写：
-
-1. Prompt 层：把用户需求写成模型能执行的视觉、运动、镜头、风格和声音描述。
-2. Pipeline 层：决定任务按哪些阶段推进，什么时候暂停，什么时候需要用户确认。
-3. Tool 层：调用真实 MCP 工具完成生成、编辑、理解、合并或音频处理。
-4. Artifact 层：保存计划、审批、执行结果、失败原因和最终交付路径。
-
-这种划分能解释 UniVA-SKILL 和单次模型调用的区别：它不是“输入一句话直接出片”，而是把媒体生产过程拆成可检查、可恢复、可复用的步骤。
-
-### C.4 系统实现层
-
-#### C.4.1 外部智能体执行路径
-
-Codex 驱动视频生成时，推荐使用 `scripts/codex_video_runner.py`。它会读取仓库 skill，生成研究简报和分镜计划，写出 `shot_plan.json` 与 `storyboard_review.json`，然后停在等待审批状态。用户批准后，再用 `--approved-plan` 执行生成。
-
-Codex 驱动视频理解或编辑时，推荐使用 `scripts/codex_video_task_runner.py --task understand|edit`。理解任务直接调用 `vision2text_gen` 并写结构化报告；编辑任务先写 `edit_proposal.json` 和 review artifact，批准后才执行修改。
-
-#### C.4.2 后端与前端路径
-
-后端入口是 `univa/univa_server.py`，核心执行逻辑位于 `univa/univa_agent.py`、`univa/utils/skill_loader.py` 和 `univa/utils/pipeline_orchestrator.py`。前端位于 `apps/web`，提供项目素材库、时间线、上传、AI Chat 和生成结果自动导入。
-
-正文中不建议展开大量前端截图。前端截图可放到附录，用于证明 Web 端已能把素材路径、项目上下文和时间线操作传给后端。
-
-#### C.4.3 Remotion 包装层
-
-Remotion 位于最终包装阶段。它适合做稳定可读的字幕、标题卡、lower-third、CTA、品牌角标、数据卡和进度条。当前实现中，Remotion 失败时可使用 FFmpeg ASS 字幕 fallback，这一点应作为“工程可靠性”写入报告，而不是把它写成新的生成模型。
-
-#### C.4.4 输出目录与交付验证
-
-生成结果主要写入 `results/`、`data/` 或 `univa/results/`。一次标准视频生成的目录通常包含：
-
-```text
-results/codex_direct_<timestamp>_<slug>/
-├── skill_context.json
-├── skill_context_full.json
-├── research_brief.json
-├── shot_plan.json
-├── storyboard_validation.json
-├── storyboard_review.json
-├── generation_handoff.json
-├── audio_handoff.json
-├── remotion_handoff.json
-├── clip_results.json
-└── delivery_report.json
-```
-
-报告展示时，可以截取其中 `shot_plan.json`、`storyboard_review.json` 和 `delivery_report.json`，说明系统不是只给出最终视频，而是保留了完整过程。
-
-## D. 展示与场景
-
-### D.1 场景/视频类型
-
-#### D.1.1 剧场故事
-
-展示重点：多镜头叙事、人物/场景连续性、镜头节奏、字幕和转场。
-
-建议插入：
-
-- [视频占位：剧场故事最终成片，腾讯文档 Space 链接待补]
-- [图片占位：该 demo 的 shot_plan 或 storyboard_review 截图]
-
-#### D.1.2 动漫/漫剧
-
-展示重点：漫画风角色动作、风格化运动、角色一致性和多镜头拼接。
-
-当前可用素材参考：
-
-- `docs/assets/readme/comic-action-short.mp4`
-- `docs/assets/readme/anime-fight-captioned.mp4`
-- `docs/assets/readme/anime-fight-poster.jpg`
-
-建议插入：
-
-- [视频占位：动漫/漫剧最终成片，腾讯文档 Space 链接待补]
-- [视频占位：终端录屏，展示从 prompt 到审批再到生成的流程]
-
-#### D.1.3 广告
-
-展示重点：产品质感、卖点表达、字幕、CTA、品牌包装、音频。
-
-当前可用素材参考：
-
-- `docs/assets/readme/ev-ad-captioned.mp4`
-- `docs/assets/readme/ev-ad-poster.jpg`
-- `docs/assets/readme/desert-car.mp4`
-- `docs/assets/readme/desert.png`
-
-建议插入：
-
-- [视频占位：可口可乐款广告成片，腾讯文档 Space 链接待补]
-- [视频占位：电车广告终端录屏，腾讯文档 Space 链接待补]
-- [图片占位：广告字幕/CTA 包装截图]
-
-#### D.1.4 PPT 式演示视频
-
-展示重点：项目介绍、论文要点、分节标题、图表、动态卡片、旁白或字幕。该类视频可以参考 OmniScientist/HuggingFace 页面动态 demo 的形式，但内容应替换成 UniVA-SKILL 自身的 skill 架构、功能流程和 demo 结果。
-
-建议插入：
-
-- [视频占位：PPT 式演示视频成片，腾讯文档 Space 链接待补]
-- [图片占位：标题卡/架构卡/功能对照卡截图]
-
-### D.2 复合功能 Demonstration
-
-每个复合 demo 建议放两个视频：一个是干净录屏，一个是最终结果。录屏不需要把大文件塞进正文，统一上传腾讯文档 Space 后放超链接。
-
-| Demo | 展示目标 | 录屏内容 | 最终结果 |
-|---|---|---|---|
-| Demo 1 文本到广告成片 | 展示文生视频、拼接、字幕、CTA、音频 | Codex 读取 skill、生成 storyboard、等待审批、批准后生成 | [视频占位：广告成片链接] |
-| Demo 2 文本到图再到视频 | 展示文生图和图生视频串联 | 先生成主视觉，再用图生视频扩展运动 | [视频占位：图生视频成片链接] |
-| Demo 3 上传视频后编辑 | 展示理解、提案、编辑 gate | 上传素材，分析内容，生成编辑提案，确认后执行 | [视频占位：编辑前后对比链接] |
-| Demo 4 首尾帧过渡 | 展示两段视频自然衔接 | 抽尾帧和首帧，生成过渡片段，再合并 | [视频占位：过渡合成链接] |
-| Demo 5 PPT 式演示 | 展示论文/项目讲解视频 | 输入报告要点，生成分镜、标题卡和字幕包装 | [视频占位：PPT 演示链接] |
-
-### D.3 安装流程单独录屏
-
-安装流程应单独录一次，避免和具体 demo 混在一起。建议录屏顺序如下：
-
-1. 新环境打开终端，进入空目录。
-2. 克隆 GitHub 仓库。
-3. 安装 Python 依赖，确认 `python`、`ffmpeg`、`ffprobe` 可用。
-4. 配置 `.env` 和 MCP server。
-5. 运行 `scripts/preflight_media_runtime.py`。
-6. 让 Codex 读取 `AGENTS.md` 和 `skills/INDEX.md`。
-7. 执行一次低成本 review-only 任务，证明能生成 `shot_plan.json` 和 `storyboard_review.json`。
-
-建议插入：
-
-- [视频占位：新环境安装流程录屏，腾讯文档 Space 链接待补]
-- [链接占位：GitHub 仓库地址]
-- [链接占位：release 页面或安装说明页面]
-
-### D.4 附录材料
-
-正文不建议堆大量截图，但附录可以放证据图。建议准备：
-
-1. [图片占位：Skill 三层架构图，Core / Creative / Meta / Pipeline / Theme]
-2. [图片占位：`skills/INDEX.md` 目录截图]
-3. [图片占位：`storyboard_review.json` 审批截图]
-4. [图片占位：`delivery_report.json` 交付验证截图]
-5. [图片占位：Web 编辑器素材库、时间线、AI Chat 截图]
-6. [链接占位：腾讯文档 Space 视频合集]
-
-## E. 当前修改相对原稿的主要变化
-
-### E.1 结构变化
-
-原始素材主要按 UniVA 当前实现展开，优点是信息完整，但容易把基础模态、技术实现、前端、Remotion、demo 混在一起。修改后按 A/B/C/D 组织：
-
-1. A 写调研，用同类项目反查自己。
-2. B 写功能，说明系统支持什么。
-3. C 写技术，说明系统如何实现。
-4. D 写展示，说明用哪些视频和录屏证明。
-
-### E.2 内容变化
-
-1. 增加 OpenMontage 功能清单和功能对照表。
-2. 明确 Motion/Remotion 的位置，避免把它们写成 UniVA 的核心生成能力。
-3. 把编辑能力拆成抠图、换角色、换物体、换背景、风格迁移、姿态参考、拼接、首尾帧过渡等细分项。
-4. 把复合功能从泛泛描述改成 5 条可展示链路。
-5. 在需要插入图片、视频和链接的位置做了占位。
-
-### E.3 仍需补充
-
-1. 需要补真实腾讯文档 Space 视频链接。
-2. 需要补安装流程录屏。
-3. 需要补可口可乐款广告、PPT 式演示视频、首尾帧过渡视频三个重点 demo。
-4. 抠图、换角色、换物体、换背景需要用真实 demo 更新当前“间接支持/需验证”的状态。
-5. 如用于论文正文，可再增加实验指标，例如成功率、人工修改轮次、生成耗时、失败恢复率、交付验证通过率。
-
-## 参考资料
-
-1. OpenMontage GitHub README：https://github.com/calesthio/OpenMontage
-2. OpenMontage AGENT_GUIDE：https://github.com/calesthio/OpenMontage/blob/main/AGENT_GUIDE.md
-3. Motion 官方文档：https://motion.dev/
-4. Remotion 官方文档：https://www.remotion.dev/
-5. UniVA-SKILL 当前仓库：`skills/INDEX.md`、`pipeline_defs/*.yaml`、`README.zh-CN.md`

@@ -199,3 +199,127 @@ class ArtifactStore:
                 (operation_id,),
             ).fetchone()
         return json.loads(row["receipt_json"]) if row else None
+
+    def list_artifacts(
+        self,
+        *,
+        project_id: Optional[str] = None,
+        job_id: Optional[str] = None,
+        artifact_type: Optional[str] = None,
+        latest_only: bool = False,
+    ) -> list[Dict[str, Any]]:
+        """Return immutable artifact records for recovery and audit.
+
+        ``None`` means that a field is not filtered. An empty string is a real
+        filter because direct external-agent runs commonly omit project IDs.
+        """
+        clauses: list[str] = []
+        values: list[str] = []
+        for column, value in (
+            ("project_id", project_id),
+            ("job_id", job_id),
+            ("artifact_type", artifact_type),
+        ):
+            if value is not None:
+                clauses.append(f"{column} = ?")
+                values.append(str(value))
+        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT record_json FROM artifacts"
+                + where
+                + " ORDER BY created_at ASC, version ASC",
+                values,
+            ).fetchall()
+        records = [json.loads(row["record_json"]) for row in rows]
+        if not latest_only:
+            return records
+        latest: Dict[tuple[str, str, str], Dict[str, Any]] = {}
+        for record in records:
+            key = (
+                str(record.get("project_id", "")),
+                str(record.get("job_id", "")),
+                str(record.get("artifact_type", "")),
+            )
+            current = latest.get(key)
+            if current is None or int(record.get("version", 0)) > int(current.get("version", 0)):
+                latest[key] = record
+        return sorted(latest.values(), key=lambda item: float(item.get("created_at", 0.0)))
+
+    def list_receipts(self, *, job_id: Optional[str] = None) -> list[Dict[str, Any]]:
+        """Return append-only execution receipts in creation order."""
+        query = "SELECT receipt_json FROM execution_receipts"
+        values: tuple[str, ...] = ()
+        if job_id is not None:
+            query += " WHERE job_id = ?"
+            values = (str(job_id),)
+        query += " ORDER BY created_at ASC"
+        with self._connect() as connection:
+            rows = connection.execute(query, values).fetchall()
+        return [json.loads(row["receipt_json"]) for row in rows]
+
+    def verify_artifact(self, artifact_id: str) -> Dict[str, Any]:
+        """Verify stored content and referenced files without mutating state."""
+        record = self.get_artifact(artifact_id)
+        if not record:
+            return {"valid": False, "artifact_id": artifact_id, "error": "artifact_not_found"}
+        stored_content_hash = record.get("content_sha256")
+        current_content_hash = content_sha256(record.get("content"))
+        source_checks = []
+        for source in record.get("source_files") or []:
+            path = source.get("path", "")
+            stored_hash = source.get("sha256")
+            current_hash = file_sha256(path)
+            source_checks.append({
+                "path": path,
+                "exists": current_hash is not None,
+                "stored_sha256": stored_hash,
+                "current_sha256": current_hash,
+                "matches": bool(stored_hash and current_hash and stored_hash == current_hash),
+            })
+        content_matches = bool(stored_content_hash and stored_content_hash == current_content_hash)
+        return {
+            "valid": content_matches and all(item["matches"] for item in source_checks),
+            "artifact_id": artifact_id,
+            "content_matches": content_matches,
+            "stored_content_sha256": stored_content_hash,
+            "current_content_sha256": current_content_hash,
+            "source_files": source_checks,
+        }
+
+    def recovery_snapshot(self, *, job_id: str, project_id: Optional[str] = None) -> Dict[str, Any]:
+        """Build a read-only restart handoff from canonical records.
+
+        Continuation tokens are deliberately excluded. They are authentication
+        secrets and belong in the client's mode-0600 recovery state, never in
+        Artifact content or execution receipts.
+        """
+        artifacts = self.list_artifacts(project_id=project_id, job_id=job_id)
+        latest = self.list_artifacts(
+            project_id=project_id,
+            job_id=job_id,
+            latest_only=True,
+        )
+        receipts = self.list_receipts(job_id=job_id)
+        children: Dict[str, list[str]] = {}
+        for record in artifacts:
+            child_id = str(record.get("artifact_id", ""))
+            for parent_id in record.get("parent_artifact_ids") or []:
+                children.setdefault(str(parent_id), []).append(child_id)
+        return {
+            "schema_version": "1.0",
+            "job_id": job_id,
+            "project_id": project_id,
+            "artifact_count": len(artifacts),
+            "receipt_count": len(receipts),
+            "latest_artifacts": latest,
+            "artifact_versions": artifacts,
+            "children_by_artifact_id": children,
+            "execution_receipts": receipts,
+            "verification": [
+                self.verify_artifact(record["artifact_id"])
+                for record in artifacts
+            ],
+            "generated_at": time.time(),
+            "contains_continuation_token": False,
+        }

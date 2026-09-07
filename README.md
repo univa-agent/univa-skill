@@ -263,6 +263,30 @@ python scripts/univa_agent_client.py chat --prompt "Show my preferences" --show-
 python scripts/univa_agent_client.py resume --session-id <session_id> --user-input "Confirm execution"
 ```
 
+For terminal-first runs, the client automatically writes a mode-0600 recovery
+file at `data/.univa/client_sessions/<session_id>.json`. It contains the
+session ID and the current one-time continuation token, but is intentionally
+not an Artifact or log. If the terminal disconnects, inspect the durable
+server checkpoint and resume with the saved file:
+
+```bash
+python scripts/univa_agent_client.py pipeline-state \
+  --recovery-file data/.univa/client_sessions/<session_id>.json
+python scripts/univa_agent_client.py resume \
+  --recovery-file data/.univa/client_sessions/<session_id>.json \
+  --user-input "Confirm execution"
+```
+
+Each successful resume replaces the saved token with the rotated token. Never
+replay a consumed token. Canonical plans, reviews, tool results, quality
+checks, outputs, and receipts are versioned separately in the Artifact store;
+an agent can create a read-only handoff snapshot with:
+
+```bash
+python scripts/univa_artifact_recovery.py --job-id <session_id> \
+  --output results/recovery/<session_id>.json
+```
+
 ## Optional: Web Editor
 
 
@@ -354,4 +378,3 @@ results/                     Generated plans, reviews, media outputs, and delive
 logs/                        Runtime and MCP tool logs
 temp/                        Local scratch/config state created during development or execution
 ```
-
